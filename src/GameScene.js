@@ -148,22 +148,6 @@ class GameScene extends Phaser.Scene {
         repeat: -1
       });
     });
-
-    const slashRanges = {
-      down:  [1, 2, 3, 4],
-      left:  [5, 6, 7, 8],
-      right: [9, 10, 11, 12],
-      up:    [13, 14, 15, 16]
-    };
-
-    Object.entries(slashRanges).forEach(([dir, frames]) => {
-      this.anims.create({
-        key: "slash-" + dir,
-        frames: frames.map(i => ({ key: `slash_${i}` })),
-        frameRate: 14,
-        repeat: 0
-      });
-    });
   }
 
   createControls() {
@@ -334,30 +318,45 @@ class GameScene extends Phaser.Scene {
   attack() {
     if (this.attacking || this.dodging) return;
 
-    const key = "slash-" + this.facing;
-    if (!this.anims.exists(key)) {
-      this.attacking = false;
-      return;
-    }
-
     this.attacking = true;
     this.player.anims.stop();
     this.player.setVelocity(0, 0);
 
-    // Start the slash animation.
-    this.player.play(key);
+    const starts = {
+      down: 1,
+      left: 5,
+      right: 9,
+      up: 13
+    };
 
-    // Always unlock after a short fixed time so a missing/broken
-    // animation event can never freeze player movement.
-    if (this.attackUnlockTimer) {
-      this.attackUnlockTimer.remove(false);
-    }
+    const firstFrame = starts[this.facing] || 1;
+    let frame = 0;
 
-    this.attackUnlockTimer = this.time.delayedCall(380, () => {
-      this.attacking = false;
-      this.player.anims.stop();
-      this.player.setTexture("walk_" + this.facing + "_1");
-      this.attackUnlockTimer = null;
+    const showNextFrame = () => {
+      if (frame >= 4) {
+        this.attacking = false;
+        this.player.setTexture("walk_" + this.facing + "_1");
+        return;
+      }
+
+      const textureKey = "slash_" + (firstFrame + frame);
+
+      if (this.textures.exists(textureKey)) {
+        this.player.setTexture(textureKey);
+      }
+
+      frame += 1;
+      this.time.delayedCall(70, showNextFrame);
+    };
+
+    showNextFrame();
+
+    // Absolute failsafe: movement always unlocks.
+    this.time.delayedCall(420, () => {
+      if (this.attacking) {
+        this.attacking = false;
+        this.player.setTexture("walk_" + this.facing + "_1");
+      }
     });
   }
 }
