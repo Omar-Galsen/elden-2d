@@ -5,6 +5,7 @@ class GameScene extends Phaser.Scene {
     this.speed = 230;
     this.dodgeSpeed = 520;
     this.dodging = false;
+    this.attacking = false;
     this.stamina = 100;
     this.hp = 100;
   }
@@ -25,6 +26,16 @@ class GameScene extends Phaser.Scene {
         );
       }
     });
+
+    // J sword-slash animation frames.
+    // Files 01-04 = down, 05-08 = left, 09-12 = right, 13-16 = up.
+    const attackBase = "assets/sprites/player/attacks/";
+    for (let i = 1; i <= 16; i++) {
+      this.load.image(
+        `slash_${i}`,
+        `${attackBase}elden2d_slash_${String(i).padStart(2, "0")}.png`
+      );
+    }
   }
 
   create() {
@@ -137,6 +148,22 @@ class GameScene extends Phaser.Scene {
         repeat: -1
       });
     });
+
+    const slashRanges = {
+      down:  [1, 2, 3, 4],
+      left:  [5, 6, 7, 8],
+      right: [9, 10, 11, 12],
+      up:    [13, 14, 15, 16]
+    };
+
+    Object.entries(slashRanges).forEach(([dir, frames]) => {
+      this.anims.create({
+        key: "slash-" + dir,
+        frames: frames.map(i => ({ key: `slash_${i}` })),
+        frameRate: 14,
+        repeat: 0
+      });
+    });
   }
 
   createControls() {
@@ -233,7 +260,7 @@ class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.dodge)) this.dodge();
     if (Phaser.Input.Keyboard.JustDown(this.keys.attack)) this.attack();
 
-    if (!this.dodging) {
+    if (!this.dodging && !this.attacking) {
       const v = new Phaser.Math.Vector2(dx, dy);
 
       if (v.lengthSq() > 0) {
@@ -305,28 +332,19 @@ class GameScene extends Phaser.Scene {
   }
 
   attack() {
-    if (this.attackFx) return;
+    if (this.attacking || this.dodging) return;
 
-    this.attackFx = this.add.arc(
-      this.player.x,
-      this.player.y,
-      60,
-      315,
-      45,
-      false,
-      0xffd36a,
-      0.65
-    ).setDepth(19);
+    this.attacking = true;
+    this.player.anims.stop();
 
-    this.tweens.add({
-      targets: this.attackFx,
-      angle: 90,
-      alpha: 0,
-      duration: 150,
-      onComplete: () => {
-        this.attackFx.destroy();
-        this.attackFx = null;
-      }
+    // Freeze movement during the slash.
+    this.player.setVelocity(0, 0);
+
+    this.player.anims.play("slash-" + this.facing, true);
+
+    this.player.once("animationcomplete", () => {
+      this.attacking = false;
+      this.player.setTexture("walk_" + this.facing + "_1");
     });
   }
 }
