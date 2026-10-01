@@ -125,14 +125,6 @@ class GameScene extends Phaser.Scene {
 
     this.zoneLabel.setText("ISOMETRIC WORLD");
 
-    // Press C to visualize walkable collision regions while tuning the map.
-    this.collisionDebug = this.add.graphics().setDepth(500);
-    this.collisionDebugVisible = false;
-    this.input.keyboard.on("keydown-C", () => {
-      this.collisionDebugVisible = !this.collisionDebugVisible;
-      this.drawCollisionDebug();
-    });
-
     this.cameras.main.fadeIn(400, 0, 0, 0);
   }
 
@@ -225,21 +217,8 @@ class GameScene extends Phaser.Scene {
       .setDepth(301);
   }
 
-  drawCollisionDebug() {
-    this.collisionDebug.clear();
-    if (!this.collisionDebugVisible) return;
-
-    this.collisionDebug.fillStyle(0x00ff66, 0.20);
-    this.collisionDebug.lineStyle(3, 0x00ff66, 0.9);
-
-    this.walkPolys.forEach(poly => {
-      this.collisionDebug.fillPoints(poly.points, true);
-      this.collisionDebug.strokePoints(poly.points, true);
-    });
-  }
-
   pointAllowed(x, y) {
-    return this.walkPolys.some(poly => Phaser.Geom.Polygon.Contains(poly, x, y));
+    return true;
   }
 
   update(time, delta) {
