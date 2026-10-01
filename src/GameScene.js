@@ -334,17 +334,30 @@ class GameScene extends Phaser.Scene {
   attack() {
     if (this.attacking || this.dodging) return;
 
+    const key = "slash-" + this.facing;
+    if (!this.anims.exists(key)) {
+      this.attacking = false;
+      return;
+    }
+
     this.attacking = true;
     this.player.anims.stop();
-
-    // Freeze movement during the slash.
     this.player.setVelocity(0, 0);
 
-    this.player.anims.play("slash-" + this.facing, true);
+    // Start the slash animation.
+    this.player.play(key);
 
-    this.player.once("animationcomplete", () => {
+    // Always unlock after a short fixed time so a missing/broken
+    // animation event can never freeze player movement.
+    if (this.attackUnlockTimer) {
+      this.attackUnlockTimer.remove(false);
+    }
+
+    this.attackUnlockTimer = this.time.delayedCall(380, () => {
       this.attacking = false;
+      this.player.anims.stop();
       this.player.setTexture("walk_" + this.facing + "_1");
+      this.attackUnlockTimer = null;
     });
   }
 }
