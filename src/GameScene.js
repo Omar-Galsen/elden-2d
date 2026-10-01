@@ -79,6 +79,23 @@ class GameScene extends Phaser.Scene {
         285,805
       ]),
 
+      // Wide lower-road corridor. This intentionally overlaps the stair
+      // landing and the main route so there are no narrow "seams" that
+      // trap the player between polygons.
+      new Phaser.Geom.Polygon([
+        300,650,
+        520,620,
+        760,650,
+        1030,720,
+        1260,805,
+        1320,940,
+        1180,1010,
+        900,950,
+        650,900,
+        430,850,
+        300,780
+      ]),
+
       new Phaser.Geom.Polygon([
       120,920,
       260,860,
@@ -107,6 +124,15 @@ class GameScene extends Phaser.Scene {
     ];
 
     this.zoneLabel.setText("ISOMETRIC WORLD");
+
+    // Press C to visualize walkable collision regions while tuning the map.
+    this.collisionDebug = this.add.graphics().setDepth(500);
+    this.collisionDebugVisible = false;
+    this.input.keyboard.on("keydown-C", () => {
+      this.collisionDebugVisible = !this.collisionDebugVisible;
+      this.drawCollisionDebug();
+    });
+
     this.cameras.main.fadeIn(400, 0, 0, 0);
   }
 
@@ -197,6 +223,19 @@ class GameScene extends Phaser.Scene {
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(301);
+  }
+
+  drawCollisionDebug() {
+    this.collisionDebug.clear();
+    if (!this.collisionDebugVisible) return;
+
+    this.collisionDebug.fillStyle(0x00ff66, 0.20);
+    this.collisionDebug.lineStyle(3, 0x00ff66, 0.9);
+
+    this.walkPolys.forEach(poly => {
+      this.collisionDebug.fillPoints(poly.points, true);
+      this.collisionDebug.strokePoints(poly.points, true);
+    });
   }
 
   pointAllowed(x, y) {
