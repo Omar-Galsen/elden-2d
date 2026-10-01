@@ -1,14 +1,1 @@
-html, body {
-  margin: 0;
-  padding: 0;
-  background: #090b0d;
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
-  touch-action: none;
-}
-
-canvas {
-  display: block;
-  margin: auto;
-}
+html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#08090a;touch-action:none}canvas{display:block;margin:auto;image-rendering:auto}
