@@ -37,7 +37,9 @@ class GameScene extends Phaser.Scene {
     this.map.setDisplaySize(this.mapW, this.mapH);
     this.map.setDepth(0);
 
-    this.player = this.physics.add.sprite(170, 880, "walk_down_1");
+    // Start on the open circular graveyard plaza, away from tombstones/cliffs.
+    this.spawnPoint = { x: 205, y: 665 };
+    this.player = this.physics.add.sprite(this.spawnPoint.x, this.spawnPoint.y, "walk_down_1");
     this.player.setScale(0.22);
     this.player.setDepth(20);
     this.player.setCollideWorldBounds(true);
@@ -50,8 +52,20 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.10, 0.10);
     this.cameras.main.setZoom(1.7);
 
-    // broad collision-aware walkable route
-    this.walkPoly = new Phaser.Geom.Polygon([
+    // Walkable areas are split into clean regions so the spawn plaza is valid
+    // and the player does not begin inside blocked scenery.
+    this.walkPolys = [
+      new Phaser.Geom.Polygon([
+        120,610,
+        300,590,
+        390,650,
+        380,735,
+        305,790,
+        175,785,
+        95,725,
+        90,650
+      ]),
+      new Phaser.Geom.Polygon([
       120,920,
       260,860,
       430,760,
@@ -75,7 +89,8 @@ class GameScene extends Phaser.Scene {
       150,980,
 
       120,920
-    ]);
+      ])
+    ];
 
     this.zoneLabel.setText("ISOMETRIC WORLD");
     this.cameras.main.fadeIn(400, 0, 0, 0);
@@ -171,7 +186,7 @@ class GameScene extends Phaser.Scene {
   }
 
   pointAllowed(x, y) {
-    return Phaser.Geom.Polygon.Contains(this.walkPoly, x, y);
+    return this.walkPolys.some(poly => Phaser.Geom.Polygon.Contains(poly, x, y));
   }
 
   update(time, delta) {
