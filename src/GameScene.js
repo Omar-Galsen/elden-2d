@@ -38,7 +38,7 @@ class GameScene extends Phaser.Scene {
     this.map.setDepth(0);
 
     // Start on the open circular graveyard plaza, away from tombstones/cliffs.
-    this.spawnPoint = { x: 205, y: 665 };
+    this.spawnPoint = { x: 245, y: 665 };
     this.player = this.physics.add.sprite(this.spawnPoint.x, this.spawnPoint.y, "walk_down_1");
     this.player.setScale(0.22);
     this.player.setDepth(20);
@@ -58,13 +58,27 @@ class GameScene extends Phaser.Scene {
       new Phaser.Geom.Polygon([
         120,610,
         300,590,
-        390,650,
-        380,735,
-        305,790,
-        175,785,
+        410,640,
+        420,735,
+        345,800,
+        175,800,
         95,725,
         90,650
       ]),
+
+      // Stair + landing connector from the graveyard plaza to the lower road.
+      // This overlaps both neighboring walkable regions so the player
+      // cannot get trapped at the stair transition.
+      new Phaser.Geom.Polygon([
+        300,700,
+        430,690,
+        535,770,
+        565,835,
+        500,910,
+        365,875,
+        285,805
+      ]),
+
       new Phaser.Geom.Polygon([
       120,920,
       260,860,
