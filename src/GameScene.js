@@ -55,7 +55,7 @@ class GameScene extends Phaser.Scene {
     for (let i = 1; i <= 16; i++) {
       this.load.image(
         `slash_${i}`,
-        `${attackBase}elden2d_slash_${String(i).padStart(2, "0")}.png`
+        `${attackBase}elden2d_slash_${String(i).padStart(2, "0")}.png?v=slash-fixed-20261002`
       );
     }
   }
@@ -74,6 +74,8 @@ class GameScene extends Phaser.Scene {
     this.spawnPoint = { x: 245, y: 665 };
     this.player = this.physics.add.sprite(this.spawnPoint.x, this.spawnPoint.y, "walk_down_1");
     this.player.setScale(0.22);
+    // Feet-sized bounds stay constant when sword effects change the canvas.
+    this.player.body.setSize(110, 90).setOffset(110, 220);
     this.player.setDepth(20);
     this.player.setCollideWorldBounds(true);
     this.playerShadow = this.add.ellipse(this.player.x, this.player.y + 34, 54, 18, 0x000000, 0.30).setDepth(18);
@@ -345,7 +347,7 @@ class GameScene extends Phaser.Scene {
   }
 
   dodge() {
-    if (this.dodging || this.stamina < 25) return;
+    if (this.attacking || this.dodging || this.stamina < 25) return;
 
     this.stamina -= 25;
     this.dodging = true;
@@ -390,46 +392,35 @@ class GameScene extends Phaser.Scene {
     this.player.anims.stop();
     this.player.setVelocity(0, 0);
 
-    const starts = {
-      down: 1,
-      left: 5,
-      right: 9,
-      up: 13
-    };
-
-    const firstFrame = starts[this.facing] || 1;
+    // Capture facing for the entire swing; one timer owns its lifetime.
+    const direction = this.facing;
+    const starts = { down: 1, left: 5, right: 9, up: 13 };
+    const firstFrame = starts[direction];
+    const walkScale = this.player.scaleX;
+    const walkOrigin = { x: this.player.originX, y: this.player.originY };
     let frame = 0;
 
     const showNextFrame = () => {
-      if (frame >= 4) {
+      if (!this.player.active) return;
+      if (frame === 4) {
+        this.player.setTexture(`walk_${direction}_1`);
+        this.player.setScale(walkScale);
+        this.player.setOrigin(walkOrigin.x, walkOrigin.y);
+        this.player.body.setOffset(110, 220);
         this.attacking = false;
-        this.player.setTexture("walk_" + this.facing + "_1");
         return;
       }
-
-      const textureKey = "slash_" + (firstFrame + frame);
-
-      if (this.textures.exists(textureKey)) {
-        this.player.setTexture(textureKey);
-      }
-
-      if (frame === 1) {
-        this.tryPlayerHitWerewolf();
-      }
-
-      frame += 1;
-      this.time.delayedCall(70, showNextFrame);
+      this.player.setTexture(`slash_${firstFrame + frame}`);
+      this.player.setScale(walkScale);
+      // Keep the feet at the walking baseline despite the larger sword canvas.
+      this.player.setOrigin(0.5, 308 / 550);
+      this.player.body.setOffset(250, 360);
+      if (frame === 1) this.tryPlayerHitWerewolf(direction);
+      frame++;
     };
 
     showNextFrame();
-
-    // Absolute failsafe: movement always unlocks.
-    this.time.delayedCall(420, () => {
-      if (this.attacking) {
-        this.attacking = false;
-        this.player.setTexture("walk_" + this.facing + "_1");
-      }
-    });
+    this.time.addEvent({ delay: 90, repeat: 3, callback: showNextFrame });
   }
 
   updateWerewolf(time, delta) {
@@ -601,7 +592,7 @@ class GameScene extends Phaser.Scene {
     nextFrame();
   }
 
-  tryPlayerHitWerewolf() {
+  tryPlayerHitWerewolf(direction = this.facing) {
     if (!this.werewolf || !this.werewolf.active || this.werewolf.invulnerable) return;
 
     const distance = Phaser.Math.Distance.Between(
@@ -610,6 +601,10 @@ class GameScene extends Phaser.Scene {
     );
 
     if (distance > 120) return;
+    const targetX = this.werewolf.x - this.player.x;
+    const targetY = this.werewolf.y - this.player.y;
+    const aim = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[direction];
+    if (distance > 0 && (targetX * aim[0] + targetY * aim[1]) / distance < 0.35) return;
 
     this.werewolf.invulnerable = true;
     this.werewolf.hp -= 35;
