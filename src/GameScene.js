@@ -72,6 +72,7 @@ class GameScene extends Phaser.Scene {
     this.hp = 100;
     this.stamina = 100;
     this.dead = false;
+    this.blocking = false;
     this.attacking = false;
     this.dodging = false;
     this.staminaRegenAt = 0;
@@ -119,6 +120,13 @@ class GameScene extends Phaser.Scene {
 
     this.createAnimations();
     this.createControls();
+    this.guardSword = this.add.graphics().setVisible(false);
+    this.guardSword.lineStyle(5, 0xbdd8ed, 1);
+    this.guardSword.lineBetween(-25, 0, 27, 0);
+    this.guardSword.lineStyle(6, 0xc7a25b, 1);
+    this.guardSword.lineBetween(-17, -9, -17, 9);
+    this.guardSword.lineStyle(5, 0x65452b, 1);
+    this.guardSword.lineBetween(-32, 0, -20, 0);
     this.createUI();
 
     this.cameras.main.setBounds(0, 0, this.mapW, this.mapH);
@@ -231,7 +239,8 @@ class GameScene extends Phaser.Scene {
       right: "D",
       dodge: "SPACE",
       attack: "J",
-      pierce: "K"
+      pierce: "K",
+      block: "L"
     });
 
     this.mobile = { up: false, down: false, left: false, right: false };
@@ -268,6 +277,11 @@ class GameScene extends Phaser.Scene {
     this.add.text(this.scale.width - 70, y - 145, "PIERCE", {
       fontSize: "13px", color: "#fff", stroke: "#000", strokeThickness: 3
     }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
+
+    this.mobileBlocking = false;
+    const blockBtn = btn(this.scale.width - 165, y - 90, "BLOCK", 38);
+    blockBtn.on("pointerdown", () => this.mobileBlocking = true);
+    ["pointerup", "pointerout"].forEach(e => blockBtn.on(e, () => this.mobileBlocking = false));
 
     this.attackBtn.on("pointerdown", () => this.attack());
     this.pierceBtn.on("pointerdown", () => this.attack("pierce"));
@@ -313,13 +327,58 @@ class GameScene extends Phaser.Scene {
       .setDepth(301);
   }
 
+  updateBlock(time, delta) {
+    const holding = this.keys.block.isDown || this.mobileBlocking;
+    const active = holding && !this.attacking && !this.dodging && this.stamina > 0;
+    if (active && !this.blocking) {
+      this.player.anims.stop();
+      this.player.setTexture(`walk_${this.facing}_1`);
+      this.guardRaiseAt = time;
+    }
+    this.blocking = active;
+    this.guardSword.setVisible(active);
+    if (!active) return;
+    this.player.setVelocity(0, 0);
+    this.stamina = Math.max(0, this.stamina - delta * 0.008);
+    this.staminaRegenAt = time + 900;
+    const offsets = { down: [0, 20], up: [0, -20], left: [-25, 0], right: [25, 0] };
+    const [gx, gy] = offsets[this.facing];
+    const raise = Math.min(1, (time - this.guardRaiseAt) / 160);
+    this.guardSword.setPosition(this.player.x + gx, this.player.y + gy + (1 - raise) * 16);
+    this.guardSword.setRotation((this.facing === "left" || this.facing === "right" ? Math.PI / 2 : 0)
+      + Math.sin(time / 180) * 0.035);
+    this.guardSword.setAlpha(raise);
+    this.guardSword.setDepth(this.facing === "up" ? 999 + this.player.y : 1001 + this.player.y);
+  }
+
   damagePlayer(amount) {
     if (this.dead) return;
+    if (this.blocking && this.werewolf && this.werewolf.active) {
+      const aim = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[this.facing];
+      const dx = this.werewolf.x - this.player.x;
+      const dy = (this.werewolf.y - this.player.y) / this.isoYScale;
+      const distance = Math.hypot(dx, dy);
+      if (distance === 0 || (dx * aim[0] + dy * aim[1]) / distance >= 0.5) {
+        if (this.stamina >= 15) {
+          this.stamina -= 15;
+          amount *= 0.2;
+          this.tweens.add({ targets: this.guardSword, scaleX: 1.3, scaleY: 1.3,
+            duration: 80, yoyo: true });
+        } else {
+          this.stamina = 0;
+          this.blocking = false;
+          this.guardSword.setVisible(false);
+        }
+        this.staminaRegenAt = this.time.now + 900;
+      }
+    }
     this.hp = Math.max(0, this.hp - amount);
     this.hpBar.width = 210 * this.hp / 100;
     this.hpText.setText(`HP ${Math.ceil(this.hp)}/100`);
     if (this.hp > 0) return;
     this.dead = true;
+    this.blocking = false;
+    this.guardSword.setVisible(false);
     this.player.setVelocity(0, 0);
     this.player.anims.stop();
     this.player.setTint(0x777777);
@@ -346,6 +405,7 @@ class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     if (this.dead) return;
+    this.updateBlock(time, delta);
     let dx = 0;
     let dy = 0;
 
@@ -358,7 +418,7 @@ class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.attack)) this.attack();
     if (Phaser.Input.Keyboard.JustDown(this.keys.pierce)) this.attack("pierce");
 
-    if (!this.dodging && !this.attacking) {
+    if (!this.dodging && !this.attacking && !this.blocking) {
       const input = new Phaser.Math.Vector2(dx, dy);
 
       if (input.lengthSq() > 0) {
@@ -398,7 +458,7 @@ class GameScene extends Phaser.Scene {
 
     this.updateWerewolf(time, delta);
 
-    if (!this.attacking && !this.dodging && time >= this.staminaRegenAt) {
+    if (!this.blocking && !this.attacking && !this.dodging && time >= this.staminaRegenAt) {
       this.stamina = Math.min(100, this.stamina + delta * 0.025);
     }
     this.hpBar.width = 210 * (this.hp / 100);
@@ -408,7 +468,7 @@ class GameScene extends Phaser.Scene {
   }
 
   dodge() {
-    if (this.dead || this.attacking || this.dodging || this.stamina < 25) return;
+    if (this.dead || this.blocking || this.attacking || this.dodging || this.stamina < 25) return;
 
     this.stamina -= 25;
     this.staminaRegenAt = this.time.now + 900;
@@ -449,7 +509,7 @@ class GameScene extends Phaser.Scene {
 
   attack(type = "slash") {
     const cost = type === "pierce" ? 22 : 16;
-    if (this.dead || this.attacking || this.dodging || this.stamina < cost) return;
+    if (this.dead || this.blocking || this.attacking || this.dodging || this.stamina < cost) return;
     this.stamina -= cost;
     this.staminaRegenAt = this.time.now + 900;
 
