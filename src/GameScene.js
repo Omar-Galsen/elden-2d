@@ -29,7 +29,7 @@ class GameScene extends Phaser.Scene {
 
     // J sword-slash animation frames.
     // Files 01-04 = down, 05-08 = left, 09-12 = right, 13-16 = up.
-    const attackBase = "assets/sprites/player/attacks/";
+    const attackBase = "assets/sprites/player/SwordSlash/";
     for (let i = 1; i <= 16; i++) {
       this.load.image(
         `slash_${i}`,
