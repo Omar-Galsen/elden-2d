@@ -58,6 +58,14 @@ class GameScene extends Phaser.Scene {
         `${attackBase}elden2d_slash_${String(i).padStart(2, "0")}.png?v=slash-fixed-20261002`
       );
     }
+
+    const pierceBase = "assets/sprites/player/PlayerPierce/";
+    for (let i = 1; i <= 16; i++) {
+      this.load.image(
+        `pierce_${i}`,
+        `${pierceBase}player_pierce_${String(i).padStart(2, "0")}.png?v=pierce-20261002`
+      );
+    }
   }
 
   create() {
@@ -214,7 +222,8 @@ class GameScene extends Phaser.Scene {
       left: "A",
       right: "D",
       dodge: "SPACE",
-      attack: "J"
+      attack: "J",
+      pierce: "K"
     });
 
     this.mobile = { up: false, down: false, left: false, right: false };
@@ -247,8 +256,13 @@ class GameScene extends Phaser.Scene {
 
     this.attackBtn = btn(this.scale.width - 70, y, "⚔", 42);
     this.dodgeBtn = btn(this.scale.width - 160, y + 15, "↯", 38);
+    this.pierceBtn = btn(this.scale.width - 70, y - 95, "↑", 36);
+    this.add.text(this.scale.width - 70, y - 145, "PIERCE", {
+      fontSize: "13px", color: "#fff", stroke: "#000", strokeThickness: 3
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
 
     this.attackBtn.on("pointerdown", () => this.attack());
+    this.pierceBtn.on("pointerdown", () => this.attack("pierce"));
     this.dodgeBtn.on("pointerdown", () => this.dodge());
   }
 
@@ -300,6 +314,7 @@ class GameScene extends Phaser.Scene {
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.dodge)) this.dodge();
     if (Phaser.Input.Keyboard.JustDown(this.keys.attack)) this.attack();
+    if (Phaser.Input.Keyboard.JustDown(this.keys.pierce)) this.attack("pierce");
 
     if (!this.dodging && !this.attacking) {
       const input = new Phaser.Math.Vector2(dx, dy);
@@ -385,9 +400,12 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  attack() {
+  attack(type = "slash") {
     if (this.attacking || this.dodging) return;
 
+    const profile = type === "pierce"
+      ? { prefix: "pierce", delay: 110, hitFrame: 2, reach: 150, aimDot: 0.9, damage: 45 }
+      : { prefix: "slash", delay: 90, hitFrame: 1, reach: 120, aimDot: 0.35, damage: 35 };
     this.attacking = true;
     this.player.anims.stop();
     this.player.setVelocity(0, 0);
@@ -410,17 +428,17 @@ class GameScene extends Phaser.Scene {
         this.attacking = false;
         return;
       }
-      this.player.setTexture(`slash_${firstFrame + frame}`);
+      this.player.setTexture(`${profile.prefix}_${firstFrame + frame}`);
       this.player.setScale(walkScale);
       // Keep the feet at the walking baseline despite the larger sword canvas.
       this.player.setOrigin(0.5, 308 / 550);
       this.player.body.setOffset(250, 360);
-      if (frame === 1) this.tryPlayerHitWerewolf(direction);
+      if (frame === profile.hitFrame) this.tryPlayerHitWerewolf(direction, profile);
       frame++;
     };
 
     showNextFrame();
-    this.time.addEvent({ delay: 90, repeat: 3, callback: showNextFrame });
+    this.time.addEvent({ delay: profile.delay, repeat: 3, callback: showNextFrame });
   }
 
   updateWerewolf(time, delta) {
@@ -592,7 +610,7 @@ class GameScene extends Phaser.Scene {
     nextFrame();
   }
 
-  tryPlayerHitWerewolf(direction = this.facing) {
+  tryPlayerHitWerewolf(direction = this.facing, profile = { reach: 120, aimDot: 0.35, damage: 35 }) {
     if (!this.werewolf || !this.werewolf.active || this.werewolf.invulnerable) return;
 
     const distance = Phaser.Math.Distance.Between(
@@ -600,14 +618,14 @@ class GameScene extends Phaser.Scene {
       this.werewolf.x, this.werewolf.y
     );
 
-    if (distance > 120) return;
+    if (distance > profile.reach) return;
     const targetX = this.werewolf.x - this.player.x;
     const targetY = this.werewolf.y - this.player.y;
     const aim = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[direction];
-    if (distance > 0 && (targetX * aim[0] + targetY * aim[1]) / distance < 0.35) return;
+    if (distance > 0 && (targetX * aim[0] + targetY * aim[1]) / distance < profile.aimDot) return;
 
     this.werewolf.invulnerable = true;
-    this.werewolf.hp -= 35;
+    this.werewolf.hp -= profile.damage;
     this.werewolf.setTint(0xffffff);
 
     // knockback
