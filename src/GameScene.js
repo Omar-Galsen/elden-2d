@@ -20,7 +20,8 @@ class GameScene extends Phaser.Scene {
     const playerBase = "assets/sprites/player/";
 
     ["down", "left", "right", "up"].forEach(dir => {
-      for (let i = 1; i <= 4; i++) {
+      const frameCount = dir === "down" ? 8 : 4;
+      for (let i = 1; i <= frameCount; i++) {
         this.load.image(
           `walk_${dir}_${i}`,
           `${playerBase}${dir}/walk_${dir}_${String(i).padStart(2, "0")}.png`
@@ -178,8 +179,8 @@ class GameScene extends Phaser.Scene {
     ["down", "left", "right", "up"].forEach(dir => {
       this.anims.create({
         key: "walk-" + dir,
-        frames: [1, 2, 3, 4].map(i => ({ key: `walk_${dir}_${i}` })),
-        frameRate: 8,
+        frames: Array.from({ length: dir === "down" ? 8 : 4 }, (_, i) => ({ key: `walk_${dir}_${i + 1}` })),
+        frameRate: dir === "down" ? 12 : 8,
         repeat: -1
       });
     });
