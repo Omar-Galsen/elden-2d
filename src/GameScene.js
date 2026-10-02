@@ -20,10 +20,11 @@ class GameScene extends Phaser.Scene {
     const playerBase = "assets/sprites/player/";
 
     ["down", "left", "right", "up"].forEach(dir => {
-      for (let i = 1; i <= 4; i++) {
+      const frameCount = 8;
+      for (let i = 1; i <= frameCount; i++) {
         this.load.image(
           `walk_${dir}_${i}`,
-          `${playerBase}walk_${dir}_${String(i).padStart(2, "0")}.png`
+          `${playerBase}${dir}/walk_${dir}_${String(i).padStart(2, "0")}.png`
         );
       }
     });
@@ -34,6 +35,16 @@ class GameScene extends Phaser.Scene {
         this.load.image(
           `werewolf_${dir}_${i}`,
           `${werewolfBase}werewolf_${dir}_${String(i).padStart(2, "0")}.png`
+        );
+      }
+    });
+
+    const werewolfAttackBase = "assets/sprites/enemies/werewolf/attacks/";
+    ["down", "left", "right", "up"].forEach(dir => {
+      for (let i = 1; i <= 4; i++) {
+        this.load.image(
+          `werewolf_attack_${dir}_${i}`,
+          `${werewolfAttackBase}werewolf_attack_${dir}_${String(i).padStart(2, "0")}.png`
         );
       }
     });
@@ -178,8 +189,8 @@ class GameScene extends Phaser.Scene {
     ["down", "left", "right", "up"].forEach(dir => {
       this.anims.create({
         key: "walk-" + dir,
-        frames: [1, 2, 3, 4].map(i => ({ key: `walk_${dir}_${i}` })),
-        frameRate: 8,
+        frames: Array.from({ length: 8 }, (_, i) => ({ key: `walk_${dir}_${i + 1}` })),
+        frameRate: 12,
         repeat: -1
       });
     });
@@ -494,43 +505,79 @@ class GameScene extends Phaser.Scene {
     this.werewolf.setVelocity(0, 0);
     this.werewolf.anims.stop();
 
-    // telegraph: brief red flash before the hit
+    // brief telegraph before the claw animation
     this.werewolf.setTint(0xff6666);
 
-    this.time.delayedCall(420, () => {
+    this.time.delayedCall(260, () => {
       if (!this.werewolf || !this.werewolf.active) return;
 
       this.werewolf.clearTint();
+      this.playWerewolfAttackFrames(this.werewolf.facing, () => {
+        const distance = Phaser.Math.Distance.Between(
+          this.werewolf.x, this.werewolf.y,
+          this.player.x, this.player.y
+        );
 
-      const distance = Phaser.Math.Distance.Between(
-        this.werewolf.x, this.werewolf.y,
-        this.player.x, this.player.y
-      );
+        if (distance < 115 && !this.dodging) {
+          this.hp = Math.max(0, this.hp - 22);
+          this.cameras.main.shake(100, 0.006);
+          this.player.setTint(0xff7777);
 
-      // timed melee hit
-      if (distance < 105 && !this.dodging) {
-        this.hp = Math.max(0, this.hp - 22);
-        this.cameras.main.shake(100, 0.006);
-        this.player.setTint(0xff7777);
-        this.time.delayedCall(120, () => {
-          if (this.player) this.player.clearTint();
-        });
-      }
-
-      this.werewolf.state = "recover";
-
-      this.time.delayedCall(480, () => {
-        if (!this.werewolf || !this.werewolf.active) return;
-        this.werewolf.state = "chase";
+          this.time.delayedCall(120, () => {
+            if (this.player) this.player.clearTint();
+          });
+        }
       });
 
-      // cooldown between attacks
-      this.time.delayedCall(1250, () => {
+      this.time.delayedCall(420, () => {
+        if (!this.werewolf || !this.werewolf.active) return;
+        this.werewolf.state = "recover";
+
+        this.time.delayedCall(380, () => {
+          if (!this.werewolf || !this.werewolf.active) return;
+          this.werewolf.state = "chase";
+          this.werewolf.setTexture("werewolf_" + this.werewolf.facing + "_1");
+        });
+      });
+
+      this.time.delayedCall(1200, () => {
         if (this.werewolf && this.werewolf.active) {
           this.werewolf.attackReady = true;
         }
       });
     });
+  }
+
+  playWerewolfAttackFrames(direction, onHit) {
+    if (!this.werewolf || !this.werewolf.active) return;
+
+    let frame = 1;
+
+    const nextFrame = () => {
+      if (!this.werewolf || !this.werewolf.active) return;
+
+      if (frame > 4) {
+        this.werewolf.setTexture("werewolf_" + direction + "_1");
+        return;
+      }
+
+      const key = "werewolf_attack_" + direction + "_" + frame;
+
+      // If the attack sprites have not been pushed yet, keep the enemy functional.
+      if (this.textures.exists(key)) {
+        this.werewolf.setTexture(key);
+      }
+
+      // Damage lands on the third frame.
+      if (frame === 3 && onHit) {
+        onHit();
+      }
+
+      frame += 1;
+      this.time.delayedCall(90, nextFrame);
+    };
+
+    nextFrame();
   }
 
   tryPlayerHitWerewolf() {
