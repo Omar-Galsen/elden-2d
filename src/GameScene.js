@@ -404,7 +404,7 @@ class GameScene extends Phaser.Scene {
     if (this.attacking || this.dodging) return;
 
     const profile = type === "pierce"
-      ? { prefix: "pierce", delay: 110, hitFrame: 2, reach: 150, aimDot: 0.9, damage: 45 }
+      ? { prefix: "pierce", delay: 110, hitFrame: 2, reach: 150, aimDot: 0.75, damage: 45 }
       : { prefix: "slash", delay: 90, hitFrame: 1, reach: 120, aimDot: 0.35, damage: 35 };
     this.attacking = true;
     this.player.anims.stop();
@@ -431,8 +431,8 @@ class GameScene extends Phaser.Scene {
       this.player.setTexture(`${profile.prefix}_${firstFrame + frame}`);
       this.player.setScale(walkScale);
       // Keep the feet at the walking baseline despite the larger sword canvas.
-      this.player.setOrigin(0.5, 308 / 550);
-      this.player.body.setOffset(250, 360);
+      this.player.setOrigin(0.5, profile.prefix === "pierce" ? 450 / 550 : 308 / 550);
+      this.player.body.setOffset(250, profile.prefix === "pierce" ? 362 : 360);
       if (frame === profile.hitFrame) this.tryPlayerHitWerewolf(direction, profile);
       frame++;
     };
@@ -620,9 +620,11 @@ class GameScene extends Phaser.Scene {
 
     if (distance > profile.reach) return;
     const targetX = this.werewolf.x - this.player.x;
-    const targetY = this.werewolf.y - this.player.y;
+    // Compare facing in the same isometric coordinates used for movement.
+    const targetY = (this.werewolf.y - this.player.y) / this.isoYScale;
+    const aimDistance = Math.hypot(targetX, targetY);
     const aim = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[direction];
-    if (distance > 0 && (targetX * aim[0] + targetY * aim[1]) / distance < profile.aimDot) return;
+    if (aimDistance > 0 && (targetX * aim[0] + targetY * aim[1]) / aimDistance < profile.aimDot) return;
 
     this.werewolf.invulnerable = true;
     this.werewolf.hp -= profile.damage;
