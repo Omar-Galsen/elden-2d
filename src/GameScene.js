@@ -571,14 +571,8 @@ class GameScene extends Phaser.Scene {
         return;
       }
 
-      // The generated attack sheet's left/right side-view rows are reversed,
-      // so swap them only for attack textures.
-      const attackDirection =
-        direction === "left" ? "right" :
-        direction === "right" ? "left" :
-        direction;
-
-      const key = "werewolf_attack_" + attackDirection + "_" + frame;
+      // Use the attack frames for the actual locked facing direction.
+      const key = "werewolf_attack_" + direction + "_" + frame;
 
       // If the attack sprites have not been pushed yet, keep the enemy functional.
       if (this.textures.exists(key)) {
