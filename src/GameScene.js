@@ -127,12 +127,12 @@ class GameScene extends Phaser.Scene {
     this.werewolfShadow = this.add.ellipse(this.werewolf.x, this.werewolf.y + 38, 64, 20, 0x000000, 0.32).setDepth(18);
     this.werewolf.maxHp = 140;
     this.werewolf.hp = 140;
-    this.werewolf.speed = 105;
+    this.werewolf.speed = 75;
     this.werewolf.state = "patrol";
     this.werewolf.attackReady = true;
     this.werewolf.lastAttackTime = 0;
     this.werewolf.patrolOrigin = new Phaser.Math.Vector2(spawn.x, spawn.y);
-    this.werewolf.patrolTarget = new Phaser.Math.Vector2(spawn.patrolX, spawn.patrolY);
+    this.werewolf.patrolTarget = new Phaser.Math.Vector2(spawn.x + (spawn.patrolX - spawn.x) * 0.45, spawn.y + (spawn.patrolY - spawn.y) * 0.45);
     this.werewolf.facing = "left";
     this.werewolf.invulnerable = false;
 
@@ -145,7 +145,7 @@ class GameScene extends Phaser.Scene {
     Object.assign(this.werewolf, {
       shadow: this.werewolfShadow, hpBg: this.werewolfHpBg, hpBar: this.werewolfHpBar,
       safePosition: { x: spawn.x, y: spawn.y },
-      patrolEnd: new Phaser.Math.Vector2(spawn.patrolX, spawn.patrolY)
+      patrolEnd: new Phaser.Math.Vector2(spawn.x + (spawn.patrolX - spawn.x) * 0.45, spawn.y + (spawn.patrolY - spawn.y) * 0.45)
     });
     this.werewolves.push(this.werewolf);
     });
@@ -618,7 +618,7 @@ class GameScene extends Phaser.Scene {
 
     if (enemy.state === "attacking" || enemy.state === "recover") {
       enemy.setVelocity(0, 0);
-    } else if (distance < 360) {
+    } else if (distance < 200) {
       enemy.state = "chase";
       setFacingFromVector(dx, dy);
 
@@ -653,7 +653,7 @@ class GameScene extends Phaser.Scene {
 
       setFacingFromVector(pdx, pdy);
       const patrol = new Phaser.Math.Vector2(pdx, pdy * this.isoYScale).normalize();
-      enemy.setVelocity(patrol.x * 55, patrol.y * 55);
+      enemy.setVelocity(patrol.x * 30, patrol.y * 30);
       enemy.anims.play("werewolf-walk-" + enemy.facing, true);
     }
 
