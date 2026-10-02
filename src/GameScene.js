@@ -29,6 +29,13 @@ class GameScene extends Phaser.Scene {
       }
     });
 
+    ["down", "left", "right", "up"].forEach(dir => {
+      for (let i = 1; i <= 4; i++) {
+        this.load.image(`block_${dir}_${i}`,
+          `${playerBase}Block/${dir}/block_${dir}_${String(i).padStart(2, "0")}.png`);
+      }
+    });
+
     const werewolfBase = "assets/sprites/enemies/werewolf/";
     ["down", "left", "right", "up"].forEach(dir => {
       for (let i = 1; i <= 4; i++) {
@@ -120,13 +127,9 @@ class GameScene extends Phaser.Scene {
 
     this.createAnimations();
     this.createControls();
-    this.guardSword = this.add.graphics().setVisible(false);
-    this.guardSword.lineStyle(5, 0xbdd8ed, 1);
-    this.guardSword.lineBetween(-25, 0, 27, 0);
-    this.guardSword.lineStyle(6, 0xc7a25b, 1);
-    this.guardSword.lineBetween(-17, -9, -17, 9);
-    this.guardSword.lineStyle(5, 0x65452b, 1);
-    this.guardSword.lineBetween(-32, 0, -20, 0);
+    this.guardSprite = this.add.sprite(this.player.x, this.player.y + 34, "block_down_1")
+      .setOrigin(0.5, 330 / 360).setScale(0.255).setVisible(false);
+    this.guardImpactUntil = 0;
     this.createUI();
 
     this.cameras.main.setBounds(0, 0, this.mapW, this.mapH);
@@ -332,23 +335,23 @@ class GameScene extends Phaser.Scene {
     const active = holding && !this.attacking && !this.dodging && this.stamina > 0;
     if (active && !this.blocking) {
       this.player.anims.stop();
-      this.player.setTexture(`walk_${this.facing}_1`);
       this.guardRaiseAt = time;
     }
     this.blocking = active;
-    this.guardSword.setVisible(active);
+    this.guardSprite.setVisible(active);
+    this.player.setVisible(!active);
     if (!active) return;
     this.player.setVelocity(0, 0);
     this.stamina = Math.max(0, this.stamina - delta * 0.008);
     this.staminaRegenAt = time + 900;
-    const offsets = { down: [0, 20], up: [0, -20], left: [-25, 0], right: [25, 0] };
-    const [gx, gy] = offsets[this.facing];
-    const raise = Math.min(1, (time - this.guardRaiseAt) / 160);
-    this.guardSword.setPosition(this.player.x + gx, this.player.y + gy + (1 - raise) * 16);
-    this.guardSword.setRotation((this.facing === "left" || this.facing === "right" ? Math.PI / 2 : 0)
-      + Math.sin(time / 180) * 0.035);
-    this.guardSword.setAlpha(raise);
-    this.guardSword.setDepth(this.facing === "up" ? 999 + this.player.y : 1001 + this.player.y);
+    // Raise, hold, recoil on impact, then settle back into guard.
+    const elapsed = time - this.guardRaiseAt;
+    const frame = time < this.guardImpactUntil ? 3
+      : time < this.guardImpactUntil + 140 && this.guardImpactUntil > 0 ? 4
+      : elapsed < 140 ? 1 : 2;
+    this.guardSprite.setTexture(`block_${this.facing}_${frame}`);
+    this.guardSprite.setPosition(this.player.x, this.player.y + 34);
+    this.guardSprite.setDepth(1000 + this.player.y);
   }
 
   damagePlayer(amount) {
@@ -362,12 +365,13 @@ class GameScene extends Phaser.Scene {
         if (this.stamina >= 15) {
           this.stamina -= 15;
           amount *= 0.2;
-          this.tweens.add({ targets: this.guardSword, scaleX: 1.3, scaleY: 1.3,
-            duration: 80, yoyo: true });
+          this.guardImpactUntil = this.time.now + 160;
+          this.guardSprite.setTexture(`block_${this.facing}_3`);
         } else {
           this.stamina = 0;
           this.blocking = false;
-          this.guardSword.setVisible(false);
+          this.guardSprite.setVisible(false);
+          this.player.setVisible(true);
         }
         this.staminaRegenAt = this.time.now + 900;
       }
@@ -378,7 +382,8 @@ class GameScene extends Phaser.Scene {
     if (this.hp > 0) return;
     this.dead = true;
     this.blocking = false;
-    this.guardSword.setVisible(false);
+    this.guardSprite.setVisible(false);
+          this.player.setVisible(true);
     this.player.setVelocity(0, 0);
     this.player.anims.stop();
     this.player.setTint(0x777777);
