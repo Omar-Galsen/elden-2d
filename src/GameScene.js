@@ -109,8 +109,18 @@ class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     this.playerShadow = this.add.ellipse(this.player.x, this.player.y + 34, 54, 18, 0x000000, 0.30).setDepth(18);
 
-    // Werewolf enemy
-    this.werewolf = this.physics.add.sprite(1000, 430, "werewolf_left_1");
+    this.werewolves = [];
+    const wolfSpawns = [
+      { x: 1000, y: 430, patrolX: 1010, patrolY: 510 },
+      { x: 450, y: 345, patrolX: 535, patrolY: 350 },
+      { x: 1070, y: 550, patrolX: 990, patrolY: 580 },
+      { x: 570, y: 800, patrolX: 610, patrolY: 850 },
+      { x: 740, y: 900, patrolX: 780, patrolY: 900 },
+      { x: 1240, y: 640, patrolX: 1300, patrolY: 675 }
+    ];
+    wolfSpawns.forEach(spawn => {
+
+    this.werewolf = this.physics.add.sprite(spawn.x, spawn.y, "werewolf_left_1");
     this.werewolf.setScale(0.24);
     this.werewolf.setDepth(19);
     this.werewolf.setCollideWorldBounds(true);
@@ -121,8 +131,8 @@ class GameScene extends Phaser.Scene {
     this.werewolf.state = "patrol";
     this.werewolf.attackReady = true;
     this.werewolf.lastAttackTime = 0;
-    this.werewolf.patrolOrigin = new Phaser.Math.Vector2(1000, 430);
-    this.werewolf.patrolTarget = new Phaser.Math.Vector2(1010, 510);
+    this.werewolf.patrolOrigin = new Phaser.Math.Vector2(spawn.x, spawn.y);
+    this.werewolf.patrolTarget = new Phaser.Math.Vector2(spawn.patrolX, spawn.patrolY);
     this.werewolf.facing = "left";
     this.werewolf.invulnerable = false;
 
@@ -132,6 +142,13 @@ class GameScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setDepth(41);
 
+    Object.assign(this.werewolf, {
+      shadow: this.werewolfShadow, hpBg: this.werewolfHpBg, hpBar: this.werewolfHpBar,
+      safePosition: { x: spawn.x, y: spawn.y },
+      patrolEnd: new Phaser.Math.Vector2(spawn.patrolX, spawn.patrolY)
+    });
+    this.werewolves.push(this.werewolf);
+    });
     this.createAnimations();
     this.createControls();
     this.guardSprite = this.add.sprite(this.player.x, this.player.y + 34, "block_down_1")
@@ -175,7 +192,13 @@ class GameScene extends Phaser.Scene {
       // Right river bank, leaving the bridge corridor open.
       new Phaser.Geom.Polygon([1100,735, 1250,755, 1380,825, 1380,1010, 1170,925, 1050,840])
     ];
-    this.werewolfSafePosition = { x: this.werewolf.x, y: this.werewolf.y };
+    // Choose valid patrol endpoints for every enemy.
+    this.werewolves.forEach(enemy => {
+      if (!this.pointAllowed(enemy.patrolEnd.x, enemy.patrolEnd.y, 38)) {
+        enemy.patrolEnd.copy(enemy.patrolOrigin);
+        enemy.patrolTarget.copy(enemy.patrolOrigin);
+      }
+    });
 
     this.zoneLabel.setText("AUTUMN CROSSROADS");
 
@@ -323,12 +346,12 @@ class GameScene extends Phaser.Scene {
     this.guardSprite.setDepth(1000 + this.player.y);
   }
 
-  damagePlayer(amount) {
+  damagePlayer(amount, enemy = null) {
     if (this.dead) return;
-    if (this.blocking && this.werewolf && this.werewolf.active) {
+    if (this.blocking && enemy && enemy.active) {
       const aim = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[this.facing];
-      const dx = this.werewolf.x - this.player.x;
-      const dy = (this.werewolf.y - this.player.y) / this.isoYScale;
+      const dx = enemy.x - this.player.x;
+      const dy = (enemy.y - this.player.y) / this.isoYScale;
       const distance = Math.hypot(dx, dy);
       if (distance === 0 || (dx * aim[0] + dy * aim[1]) / distance >= 0.5) {
         if (this.stamina >= 15) {
@@ -356,10 +379,9 @@ class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.player.anims.stop();
     this.player.setTint(0x777777);
-    if (this.werewolf && this.werewolf.active) {
-      this.werewolf.setVelocity(0, 0);
-      this.werewolf.anims.stop();
-    }
+    this.werewolves.forEach(wolf => {
+      if (wolf.active) { wolf.setVelocity(0, 0); wolf.anims.stop(); }
+    });
     const beforeOverlay = new Set(this.children.list);
     this.add.rectangle(this.scale.width / 2, this.scale.height / 2,
       this.scale.width, this.scale.height, 0x000000, 0.65)
@@ -448,7 +470,7 @@ class GameScene extends Phaser.Scene {
     this.playerShadow.setPosition(this.player.x, this.player.y + 34);
     this.playerShadow.setDepth(999 + this.player.y);
 
-    this.updateWerewolf(time, delta);
+    this.werewolves.forEach(enemy => this.updateWerewolf(time, delta, enemy));
 
     if (!this.blocking && !this.attacking && !this.dodging && time >= this.staminaRegenAt) {
       this.stamina = Math.min(100, this.stamina + delta * 0.025);
@@ -572,112 +594,112 @@ class GameScene extends Phaser.Scene {
     this.time.addEvent({ delay: profile.delay, repeat: 3, callback: showNextFrame });
   }
 
-  updateWerewolf(time, delta) {
-    if (this.dead || !this.werewolf || !this.werewolf.active) return;
+  updateWerewolf(time, delta, enemy) {
+    if (this.dead || !enemy || !enemy.active) return;
 
-    if (!this.pointAllowed(this.werewolf.x, this.werewolf.y, 38)) {
-      this.werewolf.setPosition(this.werewolfSafePosition.x, this.werewolfSafePosition.y);
-      this.werewolf.setVelocity(0, 0);
+    if (!this.pointAllowed(enemy.x, enemy.y, 38)) {
+      enemy.setPosition(enemy.safePosition.x, enemy.safePosition.y);
+      enemy.setVelocity(0, 0);
     } else {
-      this.werewolfSafePosition = { x: this.werewolf.x, y: this.werewolf.y };
+      enemy.safePosition = { x: enemy.x, y: enemy.y };
     }
-    const dx = this.player.x - this.werewolf.x;
-    const dy = this.player.y - this.werewolf.y;
+    const dx = this.player.x - enemy.x;
+    const dy = this.player.y - enemy.y;
     const distance = Math.hypot(dx, dy);
 
     // face player or patrol direction
     const setFacingFromVector = (vx, vy) => {
       if (Math.abs(vx) > Math.abs(vy)) {
-        this.werewolf.facing = vx < 0 ? "left" : "right";
+        enemy.facing = vx < 0 ? "left" : "right";
       } else {
-        this.werewolf.facing = vy < 0 ? "up" : "down";
+        enemy.facing = vy < 0 ? "up" : "down";
       }
     };
 
-    if (this.werewolf.state === "attacking" || this.werewolf.state === "recover") {
-      this.werewolf.setVelocity(0, 0);
+    if (enemy.state === "attacking" || enemy.state === "recover") {
+      enemy.setVelocity(0, 0);
     } else if (distance < 360) {
-      this.werewolf.state = "chase";
+      enemy.state = "chase";
       setFacingFromVector(dx, dy);
 
       if (distance > 95) {
         const chase = new Phaser.Math.Vector2(dx, dy * this.isoYScale).normalize();
-        this.werewolf.setVelocity(
-          chase.x * this.werewolf.speed,
-          chase.y * this.werewolf.speed
+        enemy.setVelocity(
+          chase.x * enemy.speed,
+          chase.y * enemy.speed
         );
-        this.werewolf.setFlipX(false);
-        this.werewolf.setFlipX(false);
-      this.werewolf.anims.play("werewolf-walk-" + this.werewolf.facing, true);
+        enemy.setFlipX(false);
+        enemy.setFlipX(false);
+      enemy.anims.play("werewolf-walk-" + enemy.facing, true);
       } else {
-        this.werewolf.setVelocity(0, 0);
-        this.werewolf.anims.stop();
-        this.startWerewolfTimedAttack();
+        enemy.setVelocity(0, 0);
+        enemy.anims.stop();
+        this.startWerewolfTimedAttack(enemy);
       }
     } else {
-      this.werewolf.state = "patrol";
-      const target = this.werewolf.patrolTarget;
-      const pdx = target.x - this.werewolf.x;
-      const pdy = target.y - this.werewolf.y;
+      enemy.state = "patrol";
+      const target = enemy.patrolTarget;
+      const pdx = target.x - enemy.x;
+      const pdy = target.y - enemy.y;
       const pdist = Math.hypot(pdx, pdy);
 
       if (pdist < 20) {
-        if (Phaser.Math.Distance.Between(target.x, target.y, this.werewolf.patrolOrigin.x, this.werewolf.patrolOrigin.y) < 30) {
-          this.werewolf.patrolTarget.set(1010, 510);
+        if (Phaser.Math.Distance.Between(target.x, target.y, enemy.patrolOrigin.x, enemy.patrolOrigin.y) < 30) {
+          enemy.patrolTarget.copy(enemy.patrolEnd);
         } else {
-          this.werewolf.patrolTarget.copy(this.werewolf.patrolOrigin);
+          enemy.patrolTarget.copy(enemy.patrolOrigin);
         }
       }
 
       setFacingFromVector(pdx, pdy);
       const patrol = new Phaser.Math.Vector2(pdx, pdy * this.isoYScale).normalize();
-      this.werewolf.setVelocity(patrol.x * 55, patrol.y * 55);
-      this.werewolf.anims.play("werewolf-walk-" + this.werewolf.facing, true);
+      enemy.setVelocity(patrol.x * 55, patrol.y * 55);
+      enemy.anims.play("werewolf-walk-" + enemy.facing, true);
     }
 
     // HP bar follows enemy
-    this.werewolf.setDepth(1000 + this.werewolf.y);
-    this.werewolfShadow.setPosition(this.werewolf.x, this.werewolf.y + 38);
-    this.werewolfShadow.setDepth(999 + this.werewolf.y);
+    enemy.setDepth(1000 + enemy.y);
+    enemy.shadow.setPosition(enemy.x, enemy.y + 38);
+    enemy.shadow.setDepth(999 + enemy.y);
 
-    this.werewolfHpBg.setPosition(this.werewolf.x, this.werewolf.y - 78);
-    this.werewolfHpBar.setPosition(this.werewolf.x - 45, this.werewolf.y - 78);
-    this.werewolfHpBar.width = 90 * Math.max(0, this.werewolf.hp / this.werewolf.maxHp);
+    enemy.hpBg.setPosition(enemy.x, enemy.y - 78);
+    enemy.hpBar.setPosition(enemy.x - 45, enemy.y - 78);
+    enemy.hpBar.width = 90 * Math.max(0, enemy.hp / enemy.maxHp);
   }
 
-  startWerewolfTimedAttack() {
-    if (!this.werewolf.attackReady || this.werewolf.state === "attacking") return;
+  startWerewolfTimedAttack(enemy) {
+    if (!enemy.attackReady || enemy.state === "attacking") return;
 
-    this.werewolf.attackReady = false;
-    this.werewolf.state = "attacking";
+    enemy.attackReady = false;
+    enemy.state = "attacking";
 
     // Lock facing toward the player at the instant the attack begins.
-    const attackDx = this.player.x - this.werewolf.x;
-    const attackDy = this.player.y - this.werewolf.y;
+    const attackDx = this.player.x - enemy.x;
+    const attackDy = this.player.y - enemy.y;
     if (Math.abs(attackDx) > Math.abs(attackDy)) {
-      this.werewolf.facing = attackDx < 0 ? "left" : "right";
+      enemy.facing = attackDx < 0 ? "left" : "right";
     } else {
-      this.werewolf.facing = attackDy < 0 ? "up" : "down";
+      enemy.facing = attackDy < 0 ? "up" : "down";
     }
 
-    this.werewolf.setVelocity(0, 0);
-    this.werewolf.anims.stop();
+    enemy.setVelocity(0, 0);
+    enemy.anims.stop();
 
     // brief telegraph before the claw animation
-    this.werewolf.setTint(0xff6666);
+    enemy.setTint(0xff6666);
 
     this.time.delayedCall(260, () => {
-      if (this.dead || !this.werewolf || !this.werewolf.active) return;
+      if (this.dead || !enemy || !enemy.active) return;
 
-      this.werewolf.clearTint();
-      this.playWerewolfAttackFrames(this.werewolf.facing, () => {
+      enemy.clearTint();
+      this.playWerewolfAttackFrames(enemy.facing, () => {
         const distance = Phaser.Math.Distance.Between(
-          this.werewolf.x, this.werewolf.y,
+          enemy.x, enemy.y,
           this.player.x, this.player.y
         );
 
         if (distance < 115 && !this.dodging) {
-          this.damagePlayer(22);
+          this.damagePlayer(22, enemy);
           this.cameras.main.shake(100, 0.006);
           this.player.setTint(0xff7777);
 
@@ -685,38 +707,38 @@ class GameScene extends Phaser.Scene {
             if (this.player) this.player.clearTint();
           });
         }
-      });
+      }, enemy);
 
       this.time.delayedCall(420, () => {
-        if (this.dead || !this.werewolf || !this.werewolf.active) return;
-        this.werewolf.state = "recover";
+        if (this.dead || !enemy || !enemy.active) return;
+        enemy.state = "recover";
 
         this.time.delayedCall(380, () => {
-          if (this.dead || !this.werewolf || !this.werewolf.active) return;
-          this.werewolf.state = "chase";
-          this.werewolf.setTexture("werewolf_" + this.werewolf.facing + "_1");
+          if (this.dead || !enemy || !enemy.active) return;
+          enemy.state = "chase";
+          enemy.setTexture("werewolf_" + enemy.facing + "_1");
         });
       });
 
       this.time.delayedCall(1200, () => {
-        if (this.werewolf && this.werewolf.active) {
-          this.werewolf.attackReady = true;
+        if (enemy && enemy.active) {
+          enemy.attackReady = true;
         }
       });
     });
   }
 
-  playWerewolfAttackFrames(direction, onHit) {
-    if (this.dead || !this.werewolf || !this.werewolf.active) return;
+  playWerewolfAttackFrames(direction, onHit, enemy) {
+    if (this.dead || !enemy || !enemy.active) return;
 
     let frame = 1;
 
     const nextFrame = () => {
-      if (this.dead || !this.werewolf || !this.werewolf.active) return;
+      if (this.dead || !enemy || !enemy.active) return;
 
       if (frame > 4) {
-        this.werewolf.setFlipX(false);
-        this.werewolf.setTexture("werewolf_" + direction + "_1");
+        enemy.setFlipX(false);
+        enemy.setTexture("werewolf_" + direction + "_1");
         return;
       }
 
@@ -728,12 +750,12 @@ class GameScene extends Phaser.Scene {
           ? "right"
           : direction;
 
-      this.werewolf.setFlipX(direction === "left");
+      enemy.setFlipX(direction === "left");
 
       const key = "werewolf_attack_" + attackDirection + "_" + frame;
 
       if (this.textures.exists(key)) {
-        this.werewolf.setTexture(key);
+        enemy.setTexture(key);
       }
 
       if (frame === 3 && onHit) {
@@ -747,47 +769,51 @@ class GameScene extends Phaser.Scene {
     nextFrame();
   }
 
-  tryPlayerHitWerewolf(direction = this.facing, profile = { reach: 120, aimDot: 0.35, damage: 35 }) {
-    if (!this.werewolf || !this.werewolf.active || this.werewolf.invulnerable) return;
+  tryPlayerHitWerewolf(direction = this.facing, profile = { reach: 120, aimDot: 0.35, damage: 35 }, enemy = null) {
+    if (!enemy) {
+      this.werewolves.forEach(wolf => this.tryPlayerHitWerewolf(direction, profile, wolf));
+      return;
+    }
+    if (!enemy || !enemy.active || enemy.invulnerable) return;
 
     const distance = Phaser.Math.Distance.Between(
       this.player.x, this.player.y,
-      this.werewolf.x, this.werewolf.y
+      enemy.x, enemy.y
     );
 
     if (distance > profile.reach) return;
-    const targetX = this.werewolf.x - this.player.x;
+    const targetX = enemy.x - this.player.x;
     // Compare facing in the same isometric coordinates used for movement.
-    const targetY = (this.werewolf.y - this.player.y) / this.isoYScale;
+    const targetY = (enemy.y - this.player.y) / this.isoYScale;
     const aimDistance = Math.hypot(targetX, targetY);
     const aim = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[direction];
     if (aimDistance > 0 && (targetX * aim[0] + targetY * aim[1]) / aimDistance < profile.aimDot) return;
 
-    this.werewolf.invulnerable = true;
-    this.werewolf.hp -= profile.damage;
-    this.werewolf.setTint(0xffffff);
+    enemy.invulnerable = true;
+    enemy.hp -= profile.damage;
+    enemy.setTint(0xffffff);
 
     // knockback
     const knock = new Phaser.Math.Vector2(
-      this.werewolf.x - this.player.x,
-      this.werewolf.y - this.player.y
+      enemy.x - this.player.x,
+      enemy.y - this.player.y
     ).normalize();
 
-    this.moveOnMap(this.werewolf, this.werewolf.x + knock.x * 24, this.werewolf.y + knock.y * 24, 38);
+    this.moveOnMap(enemy, enemy.x + knock.x * 24, enemy.y + knock.y * 24, 38);
 
     this.time.delayedCall(120, () => {
-      if (this.werewolf && this.werewolf.active) this.werewolf.clearTint();
+      if (enemy && enemy.active) enemy.clearTint();
     });
 
     this.time.delayedCall(280, () => {
-      if (this.werewolf && this.werewolf.active) this.werewolf.invulnerable = false;
+      if (enemy && enemy.active) enemy.invulnerable = false;
     });
 
-    if (this.werewolf.hp <= 0) {
-      this.werewolf.destroy();
-      this.werewolfShadow.destroy();
-      this.werewolfHpBg.destroy();
-      this.werewolfHpBar.destroy();
+    if (enemy.hp <= 0) {
+      enemy.destroy();
+      enemy.shadow.destroy();
+      enemy.hpBg.destroy();
+      enemy.hpBar.destroy();
 
       const defeatedLabel = this.add.text(this.player.x, this.player.y - 90, "LOUP-GAROU DEFEATED", {
         fontFamily: "serif",
