@@ -280,7 +280,7 @@ class GameScene extends Phaser.Scene {
       });
 
     this.attackBtn = btn(this.scale.width - 70, y, "⚔", 42);
-    this.dodgeBtn = btn(this.scale.width - 160, y + 15, "↯", 38);
+    this.dodgeBtn = btn(this.scale.width - 160, y + 15, "ROLL", 38);
     this.pierceBtn = btn(this.scale.width - 70, y - 95, "↑", 36);
     this.add.text(this.scale.width - 70, y - 145, "PIERCE", {
       fontSize: "13px", color: "#fff", stroke: "#000", strokeThickness: 3
@@ -493,27 +493,46 @@ class GameScene extends Phaser.Scene {
       down: new Phaser.Math.Vector2(0, 1)
     };
 
-    const d = dirs[this.facing];
+    const direction = this.facing;
+    const d = dirs[direction];
     const startX = this.player.x;
     const startY = this.player.y;
-    const duration = 170;
+    const duration = 360;
+    const distance = 120;
     const start = this.time.now;
+    const baseScale = this.player.scaleX;
+    const turn = direction === "left" || direction === "up" ? -1 : 1;
+    this.player.anims.stop();
+    this.player.setTexture(`walk_${direction}_1`);
+    this.player.setVelocity(0, 0);
 
+    const finishRoll = () => {
+      this.player.setRotation(0);
+      this.player.setScale(baseScale);
+      this.player.setTexture(`walk_${direction}_1`);
+      this.dodging = false;
+    };
     const ev = this.time.addEvent({
       delay: 16,
       loop: true,
       callback: () => {
-        const t = Math.min(1, (this.time.now - start) / duration);
-        const nx = startX + d.x * this.dodgeSpeed * (duration / 1000) * t;
-        const ny = startY + d.y * this.dodgeSpeed * (duration / 1000) * t;
-
-        if (this.pointAllowed(nx, ny)) {
-          this.player.setPosition(nx, ny);
+        if (this.dead || !this.player.active) {
+          ev.remove();
+          finishRoll();
+          return;
         }
-
+        const t = Math.min(1, (this.time.now - start) / duration);
+        const travel = 1 - Math.pow(1 - t, 2);
+        const nx = Phaser.Math.Clamp(startX + d.x * distance * travel, 28, this.mapW - 28);
+        const ny = Phaser.Math.Clamp(startY + d.y * distance * 0.75 * travel, 40, this.mapH - 40);
+        if (this.pointAllowed(nx, ny)) this.player.setPosition(nx, ny);
+        // Tuck into the roll, tumble once, then stand back up.
+        const tuck = Math.sin(Math.PI * t);
+        this.player.setScale(baseScale * (1 - tuck * 0.18), baseScale * (1 - tuck * 0.35));
+        this.player.setRotation(turn * Math.PI * 2 * t);
         if (t >= 1) {
           ev.remove();
-          this.dodging = false;
+          finishRoll();
         }
       }
     });
