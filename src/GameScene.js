@@ -502,6 +502,16 @@ class GameScene extends Phaser.Scene {
 
     this.werewolf.attackReady = false;
     this.werewolf.state = "attacking";
+
+    // Lock facing toward the player at the instant the attack begins.
+    const attackDx = this.player.x - this.werewolf.x;
+    const attackDy = this.player.y - this.werewolf.y;
+    if (Math.abs(attackDx) > Math.abs(attackDy)) {
+      this.werewolf.facing = attackDx < 0 ? "left" : "right";
+    } else {
+      this.werewolf.facing = attackDy < 0 ? "up" : "down";
+    }
+
     this.werewolf.setVelocity(0, 0);
     this.werewolf.anims.stop();
 
@@ -561,7 +571,14 @@ class GameScene extends Phaser.Scene {
         return;
       }
 
-      const key = "werewolf_attack_" + direction + "_" + frame;
+      // The generated attack sheet's left/right side-view rows are reversed,
+      // so swap them only for attack textures.
+      const attackDirection =
+        direction === "left" ? "right" :
+        direction === "right" ? "left" :
+        direction;
+
+      const key = "werewolf_attack_" + attackDirection + "_" + frame;
 
       // If the attack sprites have not been pushed yet, keep the enemy functional.
       if (this.textures.exists(key)) {
