@@ -177,7 +177,7 @@ class GameScene extends Phaser.Scene {
     ];
     this.werewolfSafePosition = { x: this.werewolf.x, y: this.werewolf.y };
 
-    this.zoneLabel.setText("ISOMETRIC WORLD");
+    this.zoneLabel.setText("AUTUMN CROSSROADS");
 
     this.cameras.main.fadeIn(400, 0, 0, 0);
   }
@@ -221,19 +221,22 @@ class GameScene extends Phaser.Scene {
     const y = this.scale.height - 90;
 
     const btn = (x, yy, label, radius = 36) => {
-      const c = this.add.circle(x, yy, radius, 0x000000, 0.48)
+      const c = this.add.circle(x, yy, radius, 0x101722, 0.88)
+        .setStrokeStyle(2, 0xa18a5b, 0.9)
         .setScrollFactor(0)
         .setDepth(200)
         .setInteractive();
 
       this.add.text(x, yy, label, {
-        fontSize: "22px",
-        color: "#fff"
+        fontSize: label.length > 2 ? "13px" : "22px",
+        color: "#ead7ad"
       })
         .setOrigin(0.5)
         .setScrollFactor(0)
         .setDepth(201);
 
+      c.on("pointerdown", () => c.setFillStyle(0x55442b, 0.95));
+      ["pointerup", "pointerout"].forEach(e => c.on(e, () => c.setFillStyle(0x101722, 0.88)));
       return c;
     };
 
@@ -262,42 +265,38 @@ class GameScene extends Phaser.Scene {
   }
 
   createUI() {
-    this.hpText = this.add.text(235, 21, "HP 100/100", {
-      fontSize: "15px", color: "#ffffff", stroke: "#000000", strokeThickness: 3
-    }).setScrollFactor(0).setDepth(302);
-    this.staminaText = this.add.text(235, 43, "STAMINA 100/100", {
-      fontSize: "14px", color: "#a6e6ad", stroke: "#000000", strokeThickness: 3
-    }).setScrollFactor(0).setDepth(302);
-    this.zoneLabel = this.add.text(this.scale.width / 2, 24, "", {
-      fontFamily: "serif",
-      fontSize: "22px",
-      color: "#e7d9ad",
-      stroke: "#000",
-      strokeThickness: 4
-    })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(300);
-
-    this.hpBg = this.add.rectangle(18, 24, 210, 16, 0x111111, 0.85)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(300);
-
-    this.hpBar = this.add.rectangle(18, 24, 210, 16, 0x8f2626)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(301);
-
-    this.stamBg = this.add.rectangle(18, 47, 210, 11, 0x111111, 0.85)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(300);
-
-    this.stamBar = this.add.rectangle(18, 47, 210, 11, 0x4a9d55)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(301);
+    const fixed = object => object.setScrollFactor(0).setDepth(300);
+    const text = (x, y, value, size = 13, color = "#d9c8a3") => fixed(this.add.text(x, y, value, {
+      fontFamily: "Georgia, serif", fontSize: `${size}px`, color,
+      stroke: "#080b10", strokeThickness: 2
+    })).setDepth(304);
+    fixed(this.add.rectangle(22, 18, 384, 126, 0x090d14, 0.92).setOrigin(0)
+      .setStrokeStyle(1, 0x88724b, 0.9));
+    fixed(this.add.rectangle(26, 22, 376, 118, 0x141a23, 0.7).setOrigin(0)
+      .setStrokeStyle(1, 0x403828));
+    fixed(this.add.circle(58, 53, 22, 0x292219).setStrokeStyle(2, 0xb99a5b));
+    text(58, 53, "F", 25, "#edcf86").setOrigin(0.5);
+    text(94, 29, "FALLEN VALE", 18, "#f2dfb5");
+    this.combatStatus = text(94, 52, "READY", 11, "#9bafa9");
+    this.hudBarWidth = 280;
+    text(40, 76, "VITALITY", 11);
+    this.hpText = text(388, 75, "100 / 100", 12, "#f5b2a7").setOrigin(1, 0);
+    this.hpBg = fixed(this.add.rectangle(106, 79, 282, 18, 0x291016).setOrigin(0)
+      .setStrokeStyle(1, 0xa18a5b));
+    this.hpBar = fixed(this.add.rectangle(107, 80, 280, 16, 0xc34848).setOrigin(0)).setDepth(301);
+    text(40, 110, "STAMINA", 11);
+    this.staminaText = text(388, 109, "100 / 100", 12, "#b3dcb8").setOrigin(1, 0);
+    this.stamBg = fixed(this.add.rectangle(106, 113, 282, 12, 0x12271d).setOrigin(0)
+      .setStrokeStyle(1, 0xa18a5b));
+    this.stamBar = fixed(this.add.rectangle(107, 114, 280, 10, 0x62a97b).setOrigin(0)).setDepth(301);
+    // Values sit above their tracks, keeping the full bar readable.
+    this.hpText.setY(62);
+    this.staminaText.setY(97);
+    fixed(this.add.rectangle(this.scale.width / 2, 37, 310, 46, 0x090d14, 0.82)
+      .setStrokeStyle(1, 0x88724b));
+    this.zoneLabel = text(this.scale.width / 2, 28, "AUTUMN CROSSROADS", 17, "#ead7ad").setOrigin(0.5, 0);
+    text(this.scale.width / 2, 70, "WASD  MOVE   •   J  SLASH   •   K  PIERCE   •   L  GUARD   •   SPACE  ROLL", 11)
+      .setOrigin(0.5);
   }
 
   updateBlock(time, delta) {
@@ -347,8 +346,8 @@ class GameScene extends Phaser.Scene {
       }
     }
     this.hp = Math.max(0, this.hp - amount);
-    this.hpBar.width = 210 * this.hp / 100;
-    this.hpText.setText(`HP ${Math.ceil(this.hp)}/100`);
+    this.hpBar.width = this.hudBarWidth * this.hp / 100;
+    this.hpText.setText(`${Math.ceil(this.hp)} / 100`);
     if (this.hp > 0) return;
     this.dead = true;
     this.blocking = false;
@@ -454,10 +453,15 @@ class GameScene extends Phaser.Scene {
     if (!this.blocking && !this.attacking && !this.dodging && time >= this.staminaRegenAt) {
       this.stamina = Math.min(100, this.stamina + delta * 0.025);
     }
-    this.hpBar.width = 210 * (this.hp / 100);
-    this.stamBar.width = 210 * (this.stamina / 100);
-    this.hpText.setText(`HP ${Math.ceil(this.hp)}/100`);
-    this.staminaText.setText(`STAMINA ${Math.floor(this.stamina)}/100`);
+    this.hpBar.width = this.hudBarWidth * (this.hp / 100);
+    this.stamBar.width = this.hudBarWidth * (this.stamina / 100);
+    this.hpText.setText(`${Math.ceil(this.hp)} / 100`);
+    this.staminaText.setText(`${Math.floor(this.stamina)} / 100`);
+    this.combatStatus.setText(this.hp <= 25 ? "CRITICAL HEALTH"
+      : this.blocking ? "GUARDING" : this.dodging ? "DODGE ROLL"
+      : this.attacking ? "ATTACKING" : this.stamina < 25 ? "RECOVERING STAMINA" : "READY");
+    this.hpBar.setFillStyle(this.hp <= 25 ? 0xef5a43 : 0xc34848);
+    this.stamBar.setFillStyle(this.stamina < 25 ? 0xc29a4d : 0x62a97b);
   }
 
   dodge() {
