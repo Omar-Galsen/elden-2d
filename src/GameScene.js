@@ -14,7 +14,7 @@ class GameScene extends Phaser.Scene {
   preload() {
     this.load.image(
       "worldMap",
-      "assets/maps/isometric_minimaps/world_isometric_map.png"
+      "assets/maps/isometric_minimaps/world_isometric_map.png?v=valley-20261001"
     );
 
     const playerBase = "assets/sprites/player/";
