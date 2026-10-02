@@ -103,7 +103,7 @@ class GameScene extends Phaser.Scene {
     this.playerShadow = this.add.ellipse(this.player.x, this.player.y + 34, 54, 18, 0x000000, 0.30).setDepth(18);
 
     // Werewolf enemy
-    this.werewolf = this.physics.add.sprite(930, 430, "werewolf_left_1");
+    this.werewolf = this.physics.add.sprite(1000, 430, "werewolf_left_1");
     this.werewolf.setScale(0.24);
     this.werewolf.setDepth(19);
     this.werewolf.setCollideWorldBounds(true);
@@ -114,8 +114,8 @@ class GameScene extends Phaser.Scene {
     this.werewolf.state = "patrol";
     this.werewolf.attackReady = true;
     this.werewolf.lastAttackTime = 0;
-    this.werewolf.patrolOrigin = new Phaser.Math.Vector2(930, 430);
-    this.werewolf.patrolTarget = new Phaser.Math.Vector2(820, 520);
+    this.werewolf.patrolOrigin = new Phaser.Math.Vector2(1000, 430);
+    this.werewolf.patrolTarget = new Phaser.Math.Vector2(1010, 510);
     this.werewolf.facing = "left";
     this.werewolf.invulnerable = false;
 
@@ -141,76 +141,32 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.10, 0.10);
     this.cameras.main.setZoom(1.7);
 
-    // Walkable areas are split into clean regions so the spawn plaza is valid
-    // and the player does not begin inside blocked scenery.
+    // Hand-traced scenery footprints for the current 1400 x 1050 map.
     this.walkPolys = [
-      new Phaser.Geom.Polygon([
-        120,610,
-        300,590,
-        410,640,
-        420,735,
-        345,800,
-        175,800,
-        95,725,
-        90,650
-      ]),
-
-      // Stair + landing connector from the graveyard plaza to the lower road.
-      // This overlaps both neighboring walkable regions so the player
-      // cannot get trapped at the stair transition.
-      new Phaser.Geom.Polygon([
-        300,700,
-        430,690,
-        535,770,
-        565,835,
-        500,910,
-        365,875,
-        285,805
-      ]),
-
-      // Wide lower-road corridor. This intentionally overlaps the stair
-      // landing and the main route so there are no narrow "seams" that
-      // trap the player between polygons.
-      new Phaser.Geom.Polygon([
-        300,650,
-        520,620,
-        760,650,
-        1030,720,
-        1260,805,
-        1320,940,
-        1180,1010,
-        900,950,
-        650,900,
-        430,850,
-        300,780
-      ]),
-
-      new Phaser.Geom.Polygon([
-      120,920,
-      260,860,
-      430,760,
-      620,700,
-      760,610,
-      900,520,
-      1030,420,
-      1160,300,
-      1290,180,
-      1350,120,
-
-      1360,260,
-      1270,340,
-      1160,430,
-      1040,520,
-      920,610,
-      780,690,
-      650,760,
-      470,830,
-      300,930,
-      150,980,
-
-      120,920
-      ])
+      new Phaser.Geom.Polygon([80,105, 170,105, 310,230, 420,300,
+        610,310, 780,250, 1010,350, 1150,300, 1270,130, 1380,155,
+        1390,285, 1300,410, 1180,555, 1260,615, 1390,680, 1390,755,
+        1250,730, 1060,645, 980,720, 930,850, 830,945, 650,975,
+        470,900, 300,805, 130,770, 75,660, 60,535, 250,520,
+        430,420, 350,330, 230,270, 115,200])
     ];
+    this.blockPolys = [
+      // Left ponds and trees beside the upper road.
+      new Phaser.Geom.Polygon([80,290, 215,280, 315,330, 390,430, 280,475, 110,465]),
+      // Chapel and stairs: keep the road below it clear.
+      new Phaser.Geom.Polygon([570,50, 730,50, 805,170, 825,240, 740,270, 660,190]),
+      // Central ruined enclosure and its stone pillars.
+      new Phaser.Geom.Polygon([685,380, 795,365, 930,435, 930,510, 840,520, 700,470]),
+      // Camp tents and fence.
+      new Phaser.Geom.Polygon([115,625, 245,590, 360,650, 345,740, 205,765, 110,720]),
+      // Tree and rock island in the middle-left.
+      new Phaser.Geom.Polygon([345,550, 435,540, 500,610, 475,680, 390,695, 320,650]),
+      // Lower rocky island; roads run around both sides.
+      new Phaser.Geom.Polygon([650,745, 735,710, 870,735, 960,805, 910,875, 770,875, 650,815]),
+      // Right river bank, leaving the bridge corridor open.
+      new Phaser.Geom.Polygon([1100,735, 1250,755, 1380,825, 1380,1010, 1170,925, 1050,840])
+    ];
+    this.werewolfSafePosition = { x: this.werewolf.x, y: this.werewolf.y };
 
     this.zoneLabel.setText("ISOMETRIC WORLD");
 
@@ -411,8 +367,26 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.ignore(this.children.list.filter(object => !beforeOverlay.has(object)));
   }
 
-  pointAllowed(x, y) {
-    return true;
+  pointAllowed(x, y, footOffset = 34) {
+    const footY = y + footOffset;
+    // Small footprint tests prevent the feet clipping into scenery.
+    return [[0, 0], [-8, 0], [8, 0], [0, -5], [0, 5]].every(([ox, oy]) => {
+      const px = x + ox, py = footY + oy;
+      return this.walkPolys.some(poly => Phaser.Geom.Polygon.Contains(poly, px, py))
+        && !this.blockPolys.some(poly => Phaser.Geom.Polygon.Contains(poly, px, py));
+    });
+  }
+
+  moveOnMap(sprite, x, y, footOffset = 34) {
+    const dx = x - sprite.x, dy = y - sprite.y;
+    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 6));
+    for (let i = 0; i < steps; i++) {
+      const nx = sprite.x + dx / steps, ny = sprite.y + dy / steps;
+      if (this.pointAllowed(nx, ny, footOffset)) sprite.setPosition(nx, ny);
+      else if (this.pointAllowed(nx, sprite.y, footOffset)) sprite.setPosition(nx, sprite.y);
+      else if (this.pointAllowed(sprite.x, ny, footOffset)) sprite.setPosition(sprite.x, ny);
+      else break;
+    }
   }
 
   update(time, delta) {
@@ -452,9 +426,7 @@ class GameScene extends Phaser.Scene {
           this.facing = input.y < 0 ? "up" : "down";
         }
 
-        if (this.pointAllowed(nx, ny)) {
-          this.player.setPosition(nx, ny);
-        }
+        this.moveOnMap(this.player, nx, ny);
 
         this.player.anims.play("walk-" + this.facing, true);
       } else {
@@ -525,7 +497,7 @@ class GameScene extends Phaser.Scene {
         const travel = 1 - Math.pow(1 - t, 2);
         const nx = Phaser.Math.Clamp(startX + d.x * distance * travel, 28, this.mapW - 28);
         const ny = Phaser.Math.Clamp(startY + d.y * distance * 0.75 * travel, 40, this.mapH - 40);
-        if (this.pointAllowed(nx, ny)) this.player.setPosition(nx, ny);
+        this.moveOnMap(this.player, nx, ny);
         // Tuck into the roll, tumble once, then stand back up.
         const tuck = Math.sin(Math.PI * t);
         this.player.setScale(baseScale * (1 - tuck * 0.18), baseScale * (1 - tuck * 0.35));
@@ -585,6 +557,12 @@ class GameScene extends Phaser.Scene {
   updateWerewolf(time, delta) {
     if (this.dead || !this.werewolf || !this.werewolf.active) return;
 
+    if (!this.pointAllowed(this.werewolf.x, this.werewolf.y, 38)) {
+      this.werewolf.setPosition(this.werewolfSafePosition.x, this.werewolfSafePosition.y);
+      this.werewolf.setVelocity(0, 0);
+    } else {
+      this.werewolfSafePosition = { x: this.werewolf.x, y: this.werewolf.y };
+    }
     const dx = this.player.x - this.werewolf.x;
     const dy = this.player.y - this.werewolf.y;
     const distance = Math.hypot(dx, dy);
@@ -627,7 +605,7 @@ class GameScene extends Phaser.Scene {
 
       if (pdist < 20) {
         if (Phaser.Math.Distance.Between(target.x, target.y, this.werewolf.patrolOrigin.x, this.werewolf.patrolOrigin.y) < 30) {
-          this.werewolf.patrolTarget.set(820, 520);
+          this.werewolf.patrolTarget.set(1010, 510);
         } else {
           this.werewolf.patrolTarget.copy(this.werewolf.patrolOrigin);
         }
@@ -777,8 +755,7 @@ class GameScene extends Phaser.Scene {
       this.werewolf.y - this.player.y
     ).normalize();
 
-    this.werewolf.x += knock.x * 24;
-    this.werewolf.y += knock.y * 24;
+    this.moveOnMap(this.werewolf, this.werewolf.x + knock.x * 24, this.werewolf.y + knock.y * 24, 38);
 
     this.time.delayedCall(120, () => {
       if (this.werewolf && this.werewolf.active) this.werewolf.clearTint();
