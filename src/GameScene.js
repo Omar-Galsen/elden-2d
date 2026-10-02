@@ -23,7 +23,7 @@ class GameScene extends Phaser.Scene {
       for (let i = 1; i <= 4; i++) {
         this.load.image(
           `walk_${dir}_${i}`,
-          `${playerBase}walk_${dir}_${String(i).padStart(2, "0")}.png`
+          `${playerBase}${dir}/walk_${dir}_${String(i).padStart(2, "0")}.png`
         );
       }
     });
