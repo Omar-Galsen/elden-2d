@@ -8,6 +8,7 @@ class GameScene extends Phaser.Scene {
     this.attacking = false;
     this.stamina = 100;
     this.hp = 100;
+    this.isoYScale = 0.58;
   }
 
   preload() {
@@ -64,12 +65,14 @@ class GameScene extends Phaser.Scene {
     this.player.setScale(0.22);
     this.player.setDepth(20);
     this.player.setCollideWorldBounds(true);
+    this.playerShadow = this.add.ellipse(this.player.x, this.player.y + 34, 54, 18, 0x000000, 0.30).setDepth(18);
 
     // Werewolf enemy
     this.werewolf = this.physics.add.sprite(930, 430, "werewolf_left_1");
     this.werewolf.setScale(0.24);
     this.werewolf.setDepth(19);
     this.werewolf.setCollideWorldBounds(true);
+    this.werewolfShadow = this.add.ellipse(this.werewolf.x, this.werewolf.y + 38, 64, 20, 0x000000, 0.32).setDepth(18);
     this.werewolf.maxHp = 140;
     this.werewolf.hp = 140;
     this.werewolf.speed = 105;
@@ -286,19 +289,25 @@ class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.attack)) this.attack();
 
     if (!this.dodging && !this.attacking) {
-      const v = new Phaser.Math.Vector2(dx, dy);
+      const input = new Phaser.Math.Vector2(dx, dy);
 
-      if (v.lengthSq() > 0) {
-        v.normalize();
+      if (input.lengthSq() > 0) {
+        input.normalize();
+
+        // Isometric movement: vertical screen travel is compressed.
+        const v = new Phaser.Math.Vector2(
+          input.x,
+          input.y * this.isoYScale
+        ).normalize();
 
         const step = this.speed * delta / 1000;
         const nx = this.player.x + v.x * step;
         const ny = this.player.y + v.y * step;
 
-        if (Math.abs(v.x) > Math.abs(v.y)) {
-          this.facing = v.x < 0 ? "left" : "right";
+        if (Math.abs(input.x) > Math.abs(input.y)) {
+          this.facing = input.x < 0 ? "left" : "right";
         } else {
-          this.facing = v.y < 0 ? "up" : "down";
+          this.facing = input.y < 0 ? "up" : "down";
         }
 
         if (this.pointAllowed(nx, ny)) {
@@ -311,6 +320,11 @@ class GameScene extends Phaser.Scene {
         this.player.setTexture("walk_" + this.facing + "_1");
       }
     }
+
+    // Isometric depth sorting: lower objects render in front.
+    this.player.setDepth(1000 + this.player.y);
+    this.playerShadow.setPosition(this.player.x, this.player.y + 34);
+    this.playerShadow.setDepth(999 + this.player.y);
 
     this.updateWerewolf(time, delta);
 
@@ -430,7 +444,11 @@ class GameScene extends Phaser.Scene {
       setFacingFromVector(dx, dy);
 
       if (distance > 95) {
-        this.physics.moveToObject(this.werewolf, this.player, this.werewolf.speed);
+        const chase = new Phaser.Math.Vector2(dx, dy * this.isoYScale).normalize();
+        this.werewolf.setVelocity(
+          chase.x * this.werewolf.speed,
+          chase.y * this.werewolf.speed
+        );
         this.werewolf.anims.play("werewolf-walk-" + this.werewolf.facing, true);
       } else {
         this.werewolf.setVelocity(0, 0);
@@ -453,11 +471,16 @@ class GameScene extends Phaser.Scene {
       }
 
       setFacingFromVector(pdx, pdy);
-      this.physics.moveTo(this.werewolf, target.x, target.y, 55);
+      const patrol = new Phaser.Math.Vector2(pdx, pdy * this.isoYScale).normalize();
+      this.werewolf.setVelocity(patrol.x * 55, patrol.y * 55);
       this.werewolf.anims.play("werewolf-walk-" + this.werewolf.facing, true);
     }
 
     // HP bar follows enemy
+    this.werewolf.setDepth(1000 + this.werewolf.y);
+    this.werewolfShadow.setPosition(this.werewolf.x, this.werewolf.y + 38);
+    this.werewolfShadow.setDepth(999 + this.werewolf.y);
+
     this.werewolfHpBg.setPosition(this.werewolf.x, this.werewolf.y - 78);
     this.werewolfHpBar.setPosition(this.werewolf.x - 45, this.werewolf.y - 78);
     this.werewolfHpBar.width = 90 * Math.max(0, this.werewolf.hp / this.werewolf.maxHp);
@@ -543,6 +566,7 @@ class GameScene extends Phaser.Scene {
 
     if (this.werewolf.hp <= 0) {
       this.werewolf.destroy();
+      this.werewolfShadow.destroy();
       this.werewolfHpBg.destroy();
       this.werewolfHpBar.destroy();
 
