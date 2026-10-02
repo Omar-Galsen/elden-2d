@@ -69,6 +69,12 @@ class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.hp = 100;
+    this.stamina = 100;
+    this.dead = false;
+    this.attacking = false;
+    this.dodging = false;
+    this.staminaRegenAt = 0;
     this.mapW = 1400;
     this.mapH = 1050;
 
@@ -197,6 +203,7 @@ class GameScene extends Phaser.Scene {
 
   createAnimations() {
     ["down", "left", "right", "up"].forEach(dir => {
+      if (this.anims.exists("walk-" + dir)) return;
       this.anims.create({
         key: "walk-" + dir,
         frames: Array.from({ length: 8 }, (_, i) => ({ key: `walk_${dir}_${i + 1}` })),
@@ -206,6 +213,7 @@ class GameScene extends Phaser.Scene {
     });
 
     ["down", "left", "right", "up"].forEach(dir => {
+      if (this.anims.exists("werewolf-walk-" + dir)) return;
       this.anims.create({
         key: "werewolf-walk-" + dir,
         frames: [1, 2, 3, 4].map(i => ({ key: `werewolf_${dir}_${i}` })),
@@ -267,6 +275,12 @@ class GameScene extends Phaser.Scene {
   }
 
   createUI() {
+    this.hpText = this.add.text(235, 21, "HP 100/100", {
+      fontSize: "15px", color: "#ffffff", stroke: "#000000", strokeThickness: 3
+    }).setScrollFactor(0).setDepth(302);
+    this.staminaText = this.add.text(235, 43, "STAMINA 100/100", {
+      fontSize: "14px", color: "#a6e6ad", stroke: "#000000", strokeThickness: 3
+    }).setScrollFactor(0).setDepth(302);
     this.zoneLabel = this.add.text(this.scale.width / 2, 24, "", {
       fontFamily: "serif",
       fontSize: "22px",
@@ -299,11 +313,39 @@ class GameScene extends Phaser.Scene {
       .setDepth(301);
   }
 
+  damagePlayer(amount) {
+    if (this.dead) return;
+    this.hp = Math.max(0, this.hp - amount);
+    this.hpBar.width = 210 * this.hp / 100;
+    this.hpText.setText(`HP ${Math.ceil(this.hp)}/100`);
+    if (this.hp > 0) return;
+    this.dead = true;
+    this.player.setVelocity(0, 0);
+    this.player.anims.stop();
+    this.player.setTint(0x777777);
+    if (this.werewolf && this.werewolf.active) {
+      this.werewolf.setVelocity(0, 0);
+      this.werewolf.anims.stop();
+    }
+    this.add.rectangle(this.scale.width / 2, this.scale.height / 2,
+      this.scale.width, this.scale.height, 0x000000, 0.65)
+      .setScrollFactor(0).setDepth(5000);
+    this.add.text(this.scale.width / 2, this.scale.height / 2 - 50, "YOU DIED", {
+      fontFamily: "serif", fontSize: "48px", color: "#bb4444"
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(5001);
+    this.add.text(this.scale.width / 2, this.scale.height / 2 + 30, "RESTART", {
+      fontSize: "28px", color: "#ffffff", backgroundColor: "#333333",
+      padding: { x: 28, y: 16 }
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(5001).setInteractive()
+      .on("pointerdown", () => this.scene.restart());
+  }
+
   pointAllowed(x, y) {
     return true;
   }
 
   update(time, delta) {
+    if (this.dead) return;
     let dx = 0;
     let dy = 0;
 
@@ -356,15 +398,20 @@ class GameScene extends Phaser.Scene {
 
     this.updateWerewolf(time, delta);
 
-    this.stamina = Math.min(100, this.stamina + delta * 0.018);
+    if (!this.attacking && !this.dodging && time >= this.staminaRegenAt) {
+      this.stamina = Math.min(100, this.stamina + delta * 0.025);
+    }
     this.hpBar.width = 210 * (this.hp / 100);
     this.stamBar.width = 210 * (this.stamina / 100);
+    this.hpText.setText(`HP ${Math.ceil(this.hp)}/100`);
+    this.staminaText.setText(`STAMINA ${Math.floor(this.stamina)}/100`);
   }
 
   dodge() {
-    if (this.attacking || this.dodging || this.stamina < 25) return;
+    if (this.dead || this.attacking || this.dodging || this.stamina < 25) return;
 
     this.stamina -= 25;
+    this.staminaRegenAt = this.time.now + 900;
     this.dodging = true;
 
     const dirs = {
@@ -401,7 +448,10 @@ class GameScene extends Phaser.Scene {
   }
 
   attack(type = "slash") {
-    if (this.attacking || this.dodging) return;
+    const cost = type === "pierce" ? 22 : 16;
+    if (this.dead || this.attacking || this.dodging || this.stamina < cost) return;
+    this.stamina -= cost;
+    this.staminaRegenAt = this.time.now + 900;
 
     const profile = type === "pierce"
       ? { prefix: "pierce", delay: 110, hitFrame: 2, reach: 150, aimDot: 0.75, damage: 45 }
@@ -419,7 +469,7 @@ class GameScene extends Phaser.Scene {
     let frame = 0;
 
     const showNextFrame = () => {
-      if (!this.player.active) return;
+      if (this.dead || !this.player.active) return;
       if (frame === 4) {
         this.player.setTexture(`walk_${direction}_1`);
         this.player.setScale(walkScale);
@@ -442,7 +492,7 @@ class GameScene extends Phaser.Scene {
   }
 
   updateWerewolf(time, delta) {
-    if (!this.werewolf || !this.werewolf.active) return;
+    if (this.dead || !this.werewolf || !this.werewolf.active) return;
 
     const dx = this.player.x - this.werewolf.x;
     const dy = this.player.y - this.werewolf.y;
@@ -530,7 +580,7 @@ class GameScene extends Phaser.Scene {
     this.werewolf.setTint(0xff6666);
 
     this.time.delayedCall(260, () => {
-      if (!this.werewolf || !this.werewolf.active) return;
+      if (this.dead || !this.werewolf || !this.werewolf.active) return;
 
       this.werewolf.clearTint();
       this.playWerewolfAttackFrames(this.werewolf.facing, () => {
@@ -540,7 +590,7 @@ class GameScene extends Phaser.Scene {
         );
 
         if (distance < 115 && !this.dodging) {
-          this.hp = Math.max(0, this.hp - 22);
+          this.damagePlayer(22);
           this.cameras.main.shake(100, 0.006);
           this.player.setTint(0xff7777);
 
@@ -551,11 +601,11 @@ class GameScene extends Phaser.Scene {
       });
 
       this.time.delayedCall(420, () => {
-        if (!this.werewolf || !this.werewolf.active) return;
+        if (this.dead || !this.werewolf || !this.werewolf.active) return;
         this.werewolf.state = "recover";
 
         this.time.delayedCall(380, () => {
-          if (!this.werewolf || !this.werewolf.active) return;
+          if (this.dead || !this.werewolf || !this.werewolf.active) return;
           this.werewolf.state = "chase";
           this.werewolf.setTexture("werewolf_" + this.werewolf.facing + "_1");
         });
@@ -570,12 +620,12 @@ class GameScene extends Phaser.Scene {
   }
 
   playWerewolfAttackFrames(direction, onHit) {
-    if (!this.werewolf || !this.werewolf.active) return;
+    if (this.dead || !this.werewolf || !this.werewolf.active) return;
 
     let frame = 1;
 
     const nextFrame = () => {
-      if (!this.werewolf || !this.werewolf.active) return;
+      if (this.dead || !this.werewolf || !this.werewolf.active) return;
 
       if (frame > 4) {
         this.werewolf.setFlipX(false);
