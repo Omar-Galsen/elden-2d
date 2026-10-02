@@ -131,6 +131,11 @@ class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 330 / 360).setScale(0.255).setVisible(false);
     this.guardImpactUntil = 0;
     this.createUI();
+    // HUD uses an unzoomed camera so screen coordinates remain visible.
+    this.hudCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height);
+    const hudObjects = this.children.list.filter(object => object.scrollFactorX === 0);
+    this.cameras.main.ignore(hudObjects);
+    this.hudCamera.ignore(this.children.list.filter(object => object.scrollFactorX !== 0));
 
     this.cameras.main.setBounds(0, 0, this.mapW, this.mapH);
     this.cameras.main.startFollow(this.player, true, 0.10, 0.10);
@@ -391,6 +396,7 @@ class GameScene extends Phaser.Scene {
       this.werewolf.setVelocity(0, 0);
       this.werewolf.anims.stop();
     }
+    const beforeOverlay = new Set(this.children.list);
     this.add.rectangle(this.scale.width / 2, this.scale.height / 2,
       this.scale.width, this.scale.height, 0x000000, 0.65)
       .setScrollFactor(0).setDepth(5000);
@@ -402,6 +408,7 @@ class GameScene extends Phaser.Scene {
       padding: { x: 28, y: 16 }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(5001).setInteractive()
       .on("pointerdown", () => this.scene.restart());
+    this.cameras.main.ignore(this.children.list.filter(object => !beforeOverlay.has(object)));
   }
 
   pointAllowed(x, y) {
@@ -768,13 +775,14 @@ class GameScene extends Phaser.Scene {
       this.werewolfHpBg.destroy();
       this.werewolfHpBar.destroy();
 
-      this.add.text(this.player.x, this.player.y - 90, "LOUP-GAROU DEFEATED", {
+      const defeatedLabel = this.add.text(this.player.x, this.player.y - 90, "LOUP-GAROU DEFEATED", {
         fontFamily: "serif",
         fontSize: "24px",
         color: "#f0d7a2",
         stroke: "#000000",
         strokeThickness: 5
       }).setOrigin(0.5).setDepth(100);
+      this.hudCamera.ignore(defeatedLabel);
     }
   }
 
