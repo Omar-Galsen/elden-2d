@@ -36,6 +36,13 @@ class GameScene extends Phaser.Scene {
       }
     });
 
+    ["down", "left", "right", "up"].forEach(dir => {
+      for (let i = 1; i <= 4; i++) {
+        this.load.image(`roll_${dir}_${i}`,
+          `${playerBase}Roll/${dir}/roll_${dir}_${String(i).padStart(2, "0")}.png`);
+      }
+    });
+
     const werewolfBase = "assets/sprites/enemies/werewolf/";
     ["down", "left", "right", "up"].forEach(dir => {
       for (let i = 1; i <= 4; i++) {
@@ -130,6 +137,8 @@ class GameScene extends Phaser.Scene {
     this.guardSprite = this.add.sprite(this.player.x, this.player.y + 34, "block_down_1")
       .setOrigin(0.5, 330 / 360).setScale(0.255).setVisible(false);
     this.guardImpactUntil = 0;
+    this.rollSprite = this.add.sprite(this.player.x, this.player.y + 34, "roll_down_1")
+      .setOrigin(0.5, 340 / 360).setScale(0.255).setVisible(false);
     this.createUI();
     // HUD uses an unzoomed camera so screen coordinates remain visible.
     this.hudCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height);
@@ -300,7 +309,7 @@ class GameScene extends Phaser.Scene {
     }
     this.blocking = active;
     this.guardSprite.setVisible(active);
-    this.player.setVisible(!active);
+    this.player.setVisible(!active && !this.dodging);
     if (!active) return;
     this.player.setVelocity(0, 0);
     this.stamina = Math.max(0, this.stamina - delta * 0.008);
@@ -472,15 +481,20 @@ class GameScene extends Phaser.Scene {
     const duration = 360;
     const distance = 120;
     const start = this.time.now;
-    const baseScale = this.player.scaleX;
-    const turn = direction === "left" || direction === "up" ? -1 : 1;
+
     this.player.anims.stop();
     this.player.setTexture(`walk_${direction}_1`);
     this.player.setVelocity(0, 0);
 
+    this.player.setVisible(false);
+    this.rollSprite.setTexture(`roll_${direction}_1`);
+    this.rollSprite.setPosition(this.player.x, this.player.y + 34);
+    this.rollSprite.setDepth(1000 + this.player.y);
+    this.rollSprite.setVisible(true);
+
     const finishRoll = () => {
-      this.player.setRotation(0);
-      this.player.setScale(baseScale);
+      this.rollSprite.setVisible(false);
+      this.player.setVisible(true);
       this.player.setTexture(`walk_${direction}_1`);
       this.dodging = false;
     };
@@ -498,10 +512,10 @@ class GameScene extends Phaser.Scene {
         const nx = Phaser.Math.Clamp(startX + d.x * distance * travel, 28, this.mapW - 28);
         const ny = Phaser.Math.Clamp(startY + d.y * distance * 0.75 * travel, 40, this.mapH - 40);
         this.moveOnMap(this.player, nx, ny);
-        // Tuck into the roll, tumble once, then stand back up.
-        const tuck = Math.sin(Math.PI * t);
-        this.player.setScale(baseScale * (1 - tuck * 0.18), baseScale * (1 - tuck * 0.35));
-        this.player.setRotation(turn * Math.PI * 2 * t);
+        const frame = Math.min(4, 1 + Math.floor(t * 4));
+        this.rollSprite.setTexture(`roll_${direction}_${frame}`);
+        this.rollSprite.setPosition(this.player.x, this.player.y + 34);
+        this.rollSprite.setDepth(1000 + this.player.y);
         if (t >= 1) {
           ev.remove();
           finishRoll();
