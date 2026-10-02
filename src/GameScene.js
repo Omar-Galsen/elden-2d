@@ -14,7 +14,7 @@ class GameScene extends Phaser.Scene {
   preload() {
     this.load.image(
       "worldMap",
-      "assets/maps/isometric_minimaps/world_isometric_map.png?v=valley-20261001"
+      "assets/maps/isometric_minimaps/world_isometric_map.png?v=crossroads-20261002"
     );
 
     const playerBase = "assets/sprites/player/";
@@ -78,8 +78,8 @@ class GameScene extends Phaser.Scene {
     this.map.setDisplaySize(this.mapW, this.mapH);
     this.map.setDepth(0);
 
-    // Start on the open circular graveyard plaza, away from tombstones/cliffs.
-    this.spawnPoint = { x: 245, y: 665 };
+    // Start on the open lower road beside the valley camp.
+    this.spawnPoint = { x: 540, y: 685 };
     this.player = this.physics.add.sprite(this.spawnPoint.x, this.spawnPoint.y, "walk_down_1");
     this.player.setScale(0.22);
     // Feet-sized bounds stay constant when sword effects change the canvas.
