@@ -460,7 +460,9 @@ class GameScene extends Phaser.Scene {
           chase.x * this.werewolf.speed,
           chase.y * this.werewolf.speed
         );
-        this.werewolf.anims.play("werewolf-walk-" + this.werewolf.facing, true);
+        this.werewolf.setFlipX(false);
+        this.werewolf.setFlipX(false);
+      this.werewolf.anims.play("werewolf-walk-" + this.werewolf.facing, true);
       } else {
         this.werewolf.setVelocity(0, 0);
         this.werewolf.anims.stop();
@@ -567,19 +569,27 @@ class GameScene extends Phaser.Scene {
       if (!this.werewolf || !this.werewolf.active) return;
 
       if (frame > 4) {
+        this.werewolf.setFlipX(false);
         this.werewolf.setTexture("werewolf_" + direction + "_1");
         return;
       }
 
-      // Use the attack frames for the actual locked facing direction.
-      const key = "werewolf_attack_" + direction + "_" + frame;
+      // The generated side-attack art faces right in both side rows.
+      // Use the right-facing attack frames as the master set and mirror
+      // them when the player is on the wolf's left.
+      const attackDirection =
+        direction === "left" || direction === "right"
+          ? "right"
+          : direction;
 
-      // If the attack sprites have not been pushed yet, keep the enemy functional.
+      this.werewolf.setFlipX(direction === "left");
+
+      const key = "werewolf_attack_" + attackDirection + "_" + frame;
+
       if (this.textures.exists(key)) {
         this.werewolf.setTexture(key);
       }
 
-      // Damage lands on the third frame.
       if (frame === 3 && onHit) {
         onHit();
       }
